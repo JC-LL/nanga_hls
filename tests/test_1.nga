@@ -1,0 +1,8 @@
+def polynom(x : i8) : i32
+  const a3 : i5 = 1
+  const a2 : i5 = 2
+  const a1 : i5 = 3
+  const a0 : i5 = 4
+
+  return a3*x**3 + a2*x**2 + a1*x + a0
+end

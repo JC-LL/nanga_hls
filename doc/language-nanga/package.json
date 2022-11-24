@@ -1,0 +1,10 @@
+{
+  "name": "language-nanga",
+  "version": "0.0.0",
+  "description": "Nanga language support in Atom",
+  "engines": {
+    "atom": "*"
+  },
+  "dependencies": {},
+  "license": "MIT"
+}

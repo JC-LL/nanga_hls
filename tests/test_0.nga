@@ -1,0 +1,5 @@
+def test0(x : i8) : i32
+  const a : i8 = 1
+  const b : i8 = 5
+  return a*x+b
+end

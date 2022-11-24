@@ -1,0 +1,73 @@
+'scopeName': 'source.nanga'
+'name': 'nanga'
+'fileTypes': ['nga']
+
+'patterns': [
+    {
+    'match': '\#(.*)\\n'
+    'name': 'comment.line.nanga'
+    }
+    {
+    'match': '\;(.*)\\n'
+    'name': 'comment.line.nanga'
+    }
+
+    {
+    'match': '\\b(require|include)\\s+(\\w+)'
+    'captures':
+        '1':
+            'name': 'keyword.control.nanga'
+        '2':
+            'name': 'entity.name.function.nanga'
+    'name': 'meta.function.nanga'
+    }
+    {
+    'match': '\\b(def)\\s+(\\w+)'
+    'captures':
+        '1':
+            'name': 'keyword.control.nanga'
+        '2':
+            'name': 'entity.name.function.nanga'
+    'name': 'meta.function.nanga'
+    }
+    {
+    'match': '\\b(dfg)\\s+(\\w+)'
+    'captures':
+        '1':
+            'name': 'keyword.control.nanga'
+        '2':
+            'name': 'entity.name.function.nanga'
+    'name': 'meta.function.nanga'
+    }
+    {
+    'match': '\\b(break|else|when|case|elsif|end|for|if|while|in|cstep|return|const|var|unknown)\\b'
+    'name': 'keyword.control.nanga'
+    }
+    {
+    'match': '\\b(return|var|const|type|enum|)\\b'
+    'name': 'support.function.nanga'
+    }
+    {
+    'match': '(true|false|<([a-zA-Z0-9\*]+)>)'
+    'name': 'support.constant.nanga'
+    }
+    {
+    'begin': '"'
+    'beginCaptures':
+      '0':
+        'name': 'punctuation.definition.string.begin'
+    'end': '"'
+    'endCaptures':
+      '0':
+        'name': 'punctuation.definition.string.end'
+    'name': 'string.quoted.double.european.nanga'
+    }
+    {
+    'match': '(\\+|\\-|<=|=|=>|:=|>=|>|<|&)'
+    'name': 'keyword.operator.nanga'
+    }
+    {
+        'match': '<.*>'
+        'name': 'support.type.nanga'
+    }
+]
