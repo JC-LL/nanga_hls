@@ -25,8 +25,8 @@ module Nanga
       token :string_literal    => /"[^"]*"/
       token :char_literal      => /'(\w+)'/
       token :float_literal     => /\d+\.\d+([Ee]([+-]?)\d+)?/
-      token :int_literal       => /0x(\da-fA-F)+|0b(01)+|\d+/
-  
+      token :int_literal       => /[+-]?(0x(\da-fA-F)+|0b(01)+|\d+)/
+
       token :comma             => /\A\,/
       token :colon             => /\A\:/
       token :semicolon         => /\A\;/

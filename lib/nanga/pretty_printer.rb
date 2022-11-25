@@ -1,12 +1,14 @@
 module Nanga
+  OP2STR={
+    :add => '+',
+    :sub => '-',
+    :mul => '*',
+    :div => '/',
+    :pow => '**',
+  }
+  
   class PrettyPrinter
-    OP2STR={
-      :add => '+',
-      :sub => '-',
-      :mul => '*',
-      :div => '/',
-      :pow => '**',
-    }
+
     def print ast_root
       ast_root.accept(self)
     end

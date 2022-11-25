@@ -1,6 +1,14 @@
 module Nanga
   Root           = Struct.new(:elements)
-  Def            = Struct.new(:name,:args,:type,:decls,:body,:symtable)
+  Def            = Struct.new(:name,:args,:type,:decls,:body,:symtable,:dfg) do
+    def stmts
+      body.stmts
+    end
+
+    def consts
+      decls.select{|decl| decl.is_a? Const}
+    end
+  end
   Arg            = Struct.new(:name,:type)
   Const          = Struct.new(:name,:type,:val)
   Var            = Struct.new(:name,:type)
@@ -10,7 +18,11 @@ module Nanga
   Range          = Struct.new(:lhs,:rhs)
   Mapping        = Struct.new(:name)
 
-  Body           = Struct.new(:stmts)
+  Body           = Struct.new(:stmts) do
+    def each &block
+      @stmts.each(&block)
+    end
+  end
 
   Cstep          = Struct.new(:id,:body)
 
