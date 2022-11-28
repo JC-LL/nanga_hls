@@ -1,6 +1,13 @@
 module Nanga
   class RangePropagator < Visitor
 
+    def visitDef func,args=nil
+      ret=super(func)
+      #now that ranges are known, we can indicate the types of each variable
+      back_annotate_types(ret)
+      ret
+    end
+
     def visitArg arg,args=nil
       set_ident_range(arg)
       arg
@@ -60,6 +67,28 @@ module Nanga
         raise "NIY : div"
       end
       return Interval.new(min,max)
+    end
+
+    def back_annotate_types def_
+      puts " |--[+] type annotations"
+      vars=def_.decls.select{|decl| decl.is_a? Var}
+      undef_vars=vars.select{|var| var.type.str=="unknown"}
+      undef_vars.each do |var|
+        min,max=var.range.min,var.range.max
+        type=(min >=0) ? get_unsigned(min,max) : get_signed(min,max)
+        var.type=Ident.create(type)
+      end
+    end
+
+    include Math
+    def get_unsigned(min,max)
+      nbits=log2(max).floor + 1
+      return "u#{nbits}"
+    end
+
+    def get_signed(min,max)
+      nbits=log2([min.abs-1,max.abs].max).floor + 2
+      return "s#{nbits}"
     end
   end
 end

@@ -2,13 +2,13 @@ module Nanga
   class DfgPrinter < Visitor
 
     COLORS={
-      Input => "green",
-      Output => "green",
+      InputNode => "green",
+      OutputNode => "green",
       ComputeNode => "cyan",
     }
     def color_of node
       case node
-      when Input,Output
+      when InputNode,OutputNode
           "green"
       when ComputeNode
         case node.stmt.rhs.op
@@ -28,9 +28,9 @@ module Nanga
 
     def sig_name node
       case node
-      when Input
+      when InputNode
         node.stmt.name.tok.val
-      when Output
+      when OutputNode
         node.stmt.expr.tok.val
       when ComputeNode
         node.stmt.lhs.tok.val
@@ -43,9 +43,9 @@ module Nanga
 
     def label_of node
       case node
-      when Input
+      when InputNode
         "?"+sig_name(node)
-      when Output
+      when OutputNode
         "!"+sig_name(node)
       when ComputeNode
         OP2STR[node.stmt.rhs.op]
@@ -73,6 +73,7 @@ module Nanga
       code << "}"
       filename=code.save_as("#{func.name.str}.dot")
       puts " |--[+] #{filename}"
+      func
     end
   end
 end

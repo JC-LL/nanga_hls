@@ -16,7 +16,7 @@ module Nanga
 
     def visitArg arg,args=nil
       arg.type.accept(self) #register its type
-      @symtable[p arg.name.str]=arg
+      @symtable[arg.name.str]=arg
     end
 
     def visitConst const,args=nil

@@ -11,11 +11,13 @@ module Nanga
   end
   Arg            = Struct.new(:name,:type)
   Const          = Struct.new(:name,:type,:val)
-  Var            = Struct.new(:name,:type)
+  Var            = Struct.new(:name,:type) do
+    def range
+      name.range
+    end
+  end
   NamedType      = Struct.new(:name)
   Interval       = Struct.new(:min,:max)
-
-  Range          = Struct.new(:lhs,:rhs)
   Mapping        = Struct.new(:name)
 
   Body           = Struct.new(:stmts) do

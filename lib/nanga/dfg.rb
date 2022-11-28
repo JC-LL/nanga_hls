@@ -17,6 +17,9 @@ module Nanga
 
   class Node
     attr_accessor :stmt,:inputs,:outputs
+    attr_accessor :cstep
+    attr_accessor :mapping
+
     def initialize stmt
       @stmt=stmt
       @inputs=[]
@@ -27,12 +30,15 @@ module Nanga
       @outputs << node
       node.inputs << self
     end
+
+    alias :succs :outputs
+    alias :preds :inputs
   end
 
-  class Input < Node
+  class InputNode < Node
   end
 
-  class Output < Node
+  class OutputNode < Node
   end
 
   class ComputeNode  < Node
@@ -41,10 +47,10 @@ module Nanga
   class ConstNode  < Node
   end
 
-  class MemRead < Node
+  class MemReadNode < Node
   end
 
-  class MemWrite < Node
+  class MemWriteNode < Node
   end
 
 end

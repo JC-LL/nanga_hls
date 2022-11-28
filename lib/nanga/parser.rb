@@ -4,7 +4,7 @@ module Nanga
     SUPPRESSABLE=[:space,:newline,:comment1,:comment2]
 
     def parse filename
-      puts "parsing #{filename}"
+      puts "[+] parsing #{filename}"
       code=IO.read(filename)
       tokens=Lexer.new.tokenize(code)
       @tokens=tokens.reject{|tok| SUPPRESSABLE.include? tok.kind}

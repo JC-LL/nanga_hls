@@ -11,32 +11,37 @@ module Nanga
 
     def compile filename
       begin
-        puts "[+] compiling #{filename}"
-
         ast=parse(filename)
-        print(ast)
 
-        puts "[+] resolving"
+        puts "[+] resolving references"
         ast=resolve(ast)
-        print(ast)
 
         puts "[+] elaborate intermediate representation"
         ir=gen_ir(ast)
-        print(ir)
+        save(ir,"ir_1")
 
         puts "[+] strength reduction"
         ir=reduce_strength(ir)
         print(ir)
+        save(ir,"sr_2")
 
         puts "[+] propagate value ranges"
         ir=propagate_range(ir)
         print(ir)
+        save(ir,"vr_3",verbose=true)
+        save(ir,"vr_4",verbose=false)
 
         puts "[+] elaborate dataflow graphs"
         ir=elaborate_dfg(ir)
 
         puts "[+] generate dot for dataflow graphs"
         generate_dot(ir)
+
+        puts "[+] scheduling"
+        ir=scheduling(ir)
+
+        puts "[+] allocation"
+        ir=allocation(ir)
 
       rescue Exception => e
         puts e.backtrace
@@ -45,35 +50,50 @@ module Nanga
     end
 
     def parse filename
+      @basename=File.basename(filename,".nga")
       Parser.new.parse filename
     end
 
-    def print root
-      PrettyPrinter.new.print(root)
+    def print ast,verbose=false
+      PrettyPrinter.new.print(ast,verbose)
     end
 
-    def resolve root
-      Resolver.new.run root
+    def save ast,tag,verbose=false
+      code=print(ast,verbose)
+      filename=@basename+"_"+tag+".nga"
+      code.save_as(filename)
     end
 
-    def gen_ir root
-      IrGen.new.run(root)
+    def resolve ast
+      Resolver.new.run ast
     end
 
-    def reduce_strength root
-      StrengthReductor.new.run(root)
+    def gen_ir ast
+      IrGen.new.run(ast)
     end
 
-    def propagate_range root
-      RangePropagator.new.run root
+    def reduce_strength ast
+      StrengthReductor.new.run(ast)
     end
 
-    def elaborate_dfg ir
-      DfgGen.new.run(ir)
+    def propagate_range ast
+      RangePropagator.new.run ast
     end
 
-    def generate_dot ir
-      DfgPrinter.new.run(ir)
+    def elaborate_dfg ast
+      DfgGen.new.run(ast)
+    end
+
+    def generate_dot ast
+      DfgPrinter.new.run(ast)
+    end
+
+    def scheduling ast
+      DfgScheduler.new.run(ast,:asap)
+    end
+
+    def allocation ast
+      DfgAllocator.new.run(ast)
     end
   end
 end
