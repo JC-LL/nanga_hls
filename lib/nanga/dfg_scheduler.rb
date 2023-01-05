@@ -9,10 +9,10 @@ module Nanga
       else
         raise "unknown algorithme named '#{algo_name}'"
       end
-
       inputs.each{|node| algo.schedule_at(node,0)}
       fix_constant_scheduling(func.dfg)
       display_scheduling(func.dfg)
+      func.body=generate_body(func.dfg)
       func
     end
 
@@ -30,6 +30,18 @@ module Nanga
           puts node.stmt.str
         end
       end
+    end
+
+    def generate_body dfg
+      ret=Body.new(stmts=[])
+      schedule=dfg.nodes.group_by{|node| node.cstep}
+      for cstep_id in 0..schedule.keys.max
+        cstep_stmts=schedule[cstep_id].map{|node| node.stmt}
+        cstep_stmts.reject!{|stmt| stmt.is_a? Const}
+        cstep_body=Body.new(cstep_stmts)
+        stmts << Cstep.new(IntLit.create(cstep_id),cstep_body)
+      end
+      ret
     end
   end
 end

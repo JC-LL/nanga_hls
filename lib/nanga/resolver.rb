@@ -1,33 +1,60 @@
 module Nanga
   class Resolver < Visitor
     def run ast
+      @symtable=Symtable.new
+      @symtable.create_scope #upper scope, seeing func definitions
       super(ast)
     end
 
     def visitDef def_,args=nil
-      def_.symtable=@symtable={}
-      @symtable[def_.name.str]=def_
+      @symtable.set def_.name.str,def_
+      @symtable.create_scope
       super(def_)
-    end
-
-    def visitNamedType type,args=nil
-      @symtable[type.name.str]=type
+      def_.symtable=@symtable.get_scope
+      @symtable.leave_scope
+      def_
     end
 
     def visitArg arg,args=nil
-      arg.type.accept(self) #register its type
-      @symtable[arg.name.str]=arg
+      puts "registering #{arg.name.str}"
+      unless @symtable.get arg.name.str
+        @symtable.set arg.name.str,arg
+      else
+        raise "ERROR : duplicate #{arg.name.str}"
+      end
+      arg
+    end
+
+    def visitVar var,args=nil
+      puts "registering #{var.name.str}"
+      @symtable.set var.name.str,var
+      var
     end
 
     def visitConst const,args=nil
-      @symtable[const.name.str]=const
+      puts "registering #{const.name.str}"
+      @symtable.set const.name.str,const
+      const
+    end
+
+    def visitNamedType ntype,args=nil
+      puts "registering #{ntype.name.str}"
+      unless @symtable.get ntype.name.str
+        @symtable.set ntype.name.str,ntype
+      #no ELSE
+      end
+      ntype
     end
 
     def visitIdent ident,args=nil
-      if def_=@symtable[ident.str]
-        return def_.name
+      if reference=@symtable.get(ident.str)
+        puts "linking #{ident.str} to a #{reference.class}"
+        ident.ref=reference
+      else
+        raise "unknown identifier '#{ident.str}'. Not found in symtable."
       end
       ident
     end
+
   end
 end

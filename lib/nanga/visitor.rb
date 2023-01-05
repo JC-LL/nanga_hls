@@ -12,9 +12,6 @@ module Nanga
     end
 
     def visitDef(def_,args=nil)
-      #  @symtable will be seen for EVERY pass inheriting Visitor :
-      @symtable=def_.symtable
-
       def_.name=def_.name.accept(self,args)
       def_.args=def_.args.map{|arg| arg.accept(self,args)}
       def_.type=def_.type.accept(self,args)
@@ -59,6 +56,7 @@ module Nanga
     end
 
     def visitBody body,args=nil
+      puts "visiting body"
       body.stmts=body.stmts.map{|stmt|stmt.accept(self,args)}
       body
     end
@@ -70,6 +68,7 @@ module Nanga
     end
 
     def visitAssign assign,args=nil
+      puts "visiting #{assign.str}"
       assign.lhs=assign.lhs.accept(self,args)
       assign.rhs=assign.rhs.accept(self,args)
       assign
@@ -84,7 +83,6 @@ module Nanga
       binary.lhs=binary.lhs.accept(self,args)
       binary.op =binary.op
       binary.rhs=binary.rhs.accept(self,args)
-      binary.mapping=binary.mapping.accept(self,args) if binary.mapping
       binary
     end
 

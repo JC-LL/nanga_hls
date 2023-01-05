@@ -13,17 +13,30 @@ module Nanga
     def each(&block)
       @nodes.each(&block)
     end
+
+    def inputs
+      @inputs||=@nodes.select{|node| node.stmt.is_a?(Arg)}
+    end
   end
 
   class Node
     attr_accessor :stmt,:inputs,:outputs
+    attr_accessor :output_var
     attr_accessor :cstep
     attr_accessor :mapping
+    attr_accessor :signature
 
     def initialize stmt
       @stmt=stmt
       @inputs=[]
       @outputs=[]
+      @signature={in:[],out:nil}
+      case stmt
+      when Arg
+        @output_var=stmt
+      when Assign
+        @output_var=stmt.lhs.ref
+      end
     end
 
     def to node
@@ -33,6 +46,14 @@ module Nanga
 
     alias :succs :outputs
     alias :preds :inputs
+
+    def op
+      case assign=stmt
+      when Assign
+        lhs,rhs=assign.lhs,assign.rhs
+        rhs.op
+      end
+    end
   end
 
   class InputNode < Node

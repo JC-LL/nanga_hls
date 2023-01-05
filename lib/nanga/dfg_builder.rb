@@ -3,7 +3,8 @@ module Nanga
     def visitDef func,args=nil
       puts " |--[+] dfg for '#{func.name.str}'"
       func.dfg=collecting(func)
-      linking(func.dfg)
+      #linking(func.dfg)
+      walk_and_link(func.dfg)
       func
     end
 
@@ -22,18 +23,11 @@ module Nanga
       dfg
     end
 
-    def linking dfg
-      producers=collect_producers(dfg)
-      dfg.nodes.each do |consumer|
-        get_operands(consumer).each do |operand|
-          producer=producers[operand.str] # operand is a Ident
-          raise "ERROR : no producer for '#{operand.str}" if producer.nil?
-          producer.to(consumer)
-        end
-      end
-    end
-
-    def collect_producers dfg
+    # here we walk nodes (created in stmt order) and build a sequential state of producers.
+    # AND link producers to current visited.
+    # this "walk and link" process, allows to handle several assignements to a same variable during
+    # this DFG construction
+    def walk_and_link dfg
       producers={}
       dfg.nodes.each do |node|
         case arg=assign=const=ret=node.stmt
@@ -42,27 +36,43 @@ module Nanga
         when Assign
           producers[assign.lhs.str]=node
         end
+        get_operands(node).each do |operand|
+          producer=producers[operand.str] # operand is a Ident
+          producer.signature[:out]=operand.ref.type.str.to_sym
+          node.signature[:in] << operand.ref.type.str.to_sym
+          raise "ERROR : no producer for '#{operand.str}" if producer.nil?
+          producer.to(node)
+        end
       end
-      producers
     end
 
     def get_operands node
       operands=[]
       case arg=const=ret=assign=node.stmt
       when Assign
-        case binary=unary=ident=assign.rhs
-        when Binary
-          operands << binary.lhs
-          operands << binary.rhs
-        when Unary
-          operands << unary.expr
-        when Ident
-          operands << ident
-        end
+        operands << get_dependencies(assign.rhs)
       when Return
-          operands << ret.expr
+        operands << get_dependencies(ret.expr)
       end
-      return operands.select{|arg| arg.is_a?(Ident)}
+      return operands.flatten
+    end
+
+    def get_dependencies expr
+      ret=[]
+      case bin=unary=ident=expr
+      when Ident
+        ret << ident
+      when Binary
+        ret << get_dependencies(bin.lhs)
+        ret << get_dependencies(bin.rhs)
+      when Unary
+        ret << get_dependencies(unary.expr)
+      end
+      ret.flatten
+    end
+
+    def get_ident expr
+      expr
     end
 
   end

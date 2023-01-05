@@ -12,24 +12,25 @@ module Nanga
     def compile filename
       begin
         ast=parse(filename)
-
         puts "[+] resolving references"
         ast=resolve(ast)
+        print(ast)
+
 
         puts "[+] elaborate intermediate representation"
-        ir=gen_ir(ast)
-        save(ir,"ir_1")
+        ir=build_ir(ast)
+        print(ir)
+        save(ir,"1_ir")
 
         puts "[+] strength reduction"
         ir=reduce_strength(ir)
         print(ir)
-        save(ir,"sr_2")
+        save(ir,"2_sr")
 
         puts "[+] propagate value ranges"
         ir=propagate_range(ir)
         print(ir)
-        save(ir,"vr_3",verbose=true)
-        save(ir,"vr_4",verbose=false)
+        save(ir,"3_vr")
 
         puts "[+] elaborate dataflow graphs"
         ir=elaborate_dfg(ir)
@@ -39,9 +40,17 @@ module Nanga
 
         puts "[+] scheduling"
         ir=scheduling(ir)
+        save(ir,"4_sc")
 
         puts "[+] allocation"
         ir=allocation(ir)
+        save(ir,"5_al")
+
+        puts "[+] controler-datapath extraction : "
+        ir=extract_controler_datapath(ir)
+
+        puts "[+] VHDL generation : "
+        top_level=vhdl_generation(ir)
 
       rescue Exception => e
         puts e.backtrace
@@ -55,11 +64,12 @@ module Nanga
     end
 
     def print ast,verbose=false
-      PrettyPrinter.new.print(ast,verbose)
+      code=PrettyPrinter.new.print(ast)
+      puts code.finalize
     end
 
-    def save ast,tag,verbose=false
-      code=print(ast,verbose)
+    def save ast,tag
+      code=PrettyPrinter.new.print(ast)
       filename=@basename+"_"+tag+".nga"
       code.save_as(filename)
     end
@@ -68,8 +78,8 @@ module Nanga
       Resolver.new.run ast
     end
 
-    def gen_ir ast
-      IrGen.new.run(ast)
+    def build_ir ast
+      IrBuilder.new.run(ast)
     end
 
     def reduce_strength ast
@@ -78,6 +88,10 @@ module Nanga
 
     def propagate_range ast
       RangePropagator.new.run ast
+    end
+
+    def operations_symetrization ast
+      Symetrization.new.run(ast)
     end
 
     def elaborate_dfg ast
@@ -95,5 +109,14 @@ module Nanga
     def allocation ast
       DfgAllocator.new.run(ast)
     end
+
+    def extract_controler_datapath ast
+      ControlerDatapathExtractor.new.run(ast)
+    end
+
+    def vhdl_generation ast
+      VHDLGenerator.new.run(ast)
+    end
+
   end
 end

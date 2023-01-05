@@ -7,7 +7,7 @@ module Nanga
     :pow => '**',
   }
 
-  class PrettyPrinter
+  class PrettyPrinter < CompilerPass
 
     def print ast_root,verbose=false
       ast_root.accept(self,verbose)
@@ -23,7 +23,7 @@ module Nanga
     end
 
     def visitDef(def_,verbose=false)
-      name=def_.name.accept(self,verbose)
+      name=def_.name.accept(self)
       args=def_.args.map{|arg| arg.accept(self,verbose)}
       type=def_.type.accept(self,verbose)
 
@@ -108,12 +108,23 @@ module Nanga
       lhs=binary.lhs.accept(self,verbose)
       op=OP2STR[binary.op]
       rhs=binary.rhs.accept(self,verbose)
-      mapping=binary.mapping.accept(self,verbose) if binary.mapping
+      case binary.mapping
+      when Ident
+        (mapping=("@"+binary.mapping.accept(self))) if binary.mapping
+      when RTL::Compute
+        mapping="@"+binary.mapping.name
+      end
       "#{lhs} #{op}#{mapping} #{rhs}"
     end
 
     def visitUnary unary,verbose=false
       unary.expression.accept(self,verbose)
+    end
+
+    def visitCast cast,verbose=false
+      type=cast.type.accept(self,verbose)
+      expr=cast.expr.accept(self,verbose)
+      "('#{type} #{expr})"
     end
 
     def visitIntType int_type,verbose=false
@@ -139,8 +150,17 @@ module Nanga
       if ident.range
         str+=ident.range.accept(self,verbose)
       end
-      if ident.mapping
-        str+=ident.mapping.accept(self,verbose)
+      if ref=ident.ref
+        case ref
+        when Var
+          if mapping=ref.mapping
+            str+="@"+mapping.name
+          end
+        when Arg
+          if mapping=ref.mapping
+            str+="@"+mapping.name
+          end
+        end
       end
       str
     end

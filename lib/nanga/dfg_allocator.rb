@@ -1,78 +1,175 @@
 module Nanga
+  class DfgAllocator < CompilerPass
 
-  class Allocator
+    # fu : functional unit.
+    # story :
+    # 0) We suppose that only computing FU need to be shared (not IO nor Const)
+    # 1) node signatures has been performed by DFG builder
+    # 2) we extract the maximum number of bits characterizing the whole architecture.
 
-    # create a hash of {Node -> []} to store units for different node classes :
-    INIT = ->(){[InputNode,ComputeNode,ConstNode,OutputNode].map{|node_klass| [node_klass,units=[]]}.to_h}
+    def visitDef func,args=nil
+      func.dfg.nodes.sort_by!{|node| node.cstep}
 
-    def hit_a_key
-      puts "hit a key"
-      $stdin.gets
-    end
+      @dim=find_single_dim(func)
 
-    def initialize
-      @units = INIT.call #node_kind -> [ units ]
-      @cstep_table={}  #{cstep -> {node_kind -> [ units ]}}
-    end
-
-    def get_a_free_functional_unit cstep,node
-      puts "\n[cstep #{cstep}] #{node.stmt.str}"
-      if @cstep_table[cstep][node.class].any?
-        unit=@cstep_table[cstep][node.class].shift
-        return unit
-      else
-        puts "need to allocate a new unit"
-        node_kind=node.class.to_s.split("::").last
-        node_kind.gsub!("Node","")
-        unit_name="Nanga::Hardware::"+node_kind+"Unit"
-        unit_klas=Object.const_get(unit_name)
-        unit=unit_klas.new
-        @units[node.class] << unit
-        return unit
-      end
-    end
-
-    def free_ressources_for cstep
-      puts "freeing ressources for cstep #{cstep}"
-      @cstep_table[cstep]=INIT.call
-      @units.each do |node_class,units|
-        @cstep_table[cstep][node_class]||=[]
-        units.each_with_index do |unit,idx|
-          @cstep_table[cstep][node_class] << unit
+      @functional_units=[] #declared FUs
+      func.dfg.nodes.each do |node|
+        fu=get_available_fu(node)
+        # bind node and FU
+        bind_to(node,fu)
+        # now glue this FU to its binary operator :
+        if (assign=node.stmt).is_a?(Assign) and (bin=assign.rhs).is_a?(Binary)
+          bin.mapping=fu
         end
       end
-    end
-  end
-
-  class DfgAllocator < Visitor
-
-    def visitDef func,algo_name
-      #-----------------------------------------------------------------
-      # Here, we simply assign a node to any of the FUs (Function Units)
-      # we assume a FU can perform every computation needed (except IO).
-      #------------------------------------------------------------------
-      @allocator=Allocator.new
-      functional_units={}  # name -> [nodes running on it]
-      scheduling=func.dfg.nodes.group_by{|node| node.cstep}
-      scheduling.keys.sort.each do |cstep|
-        @allocator.free_ressources_for(cstep)
-        scheduling[cstep].each do |node|
-          node.mapping=@allocator.get_a_free_functional_unit(cstep,node)
-        end
+      # report Allocation :
+      func.dfg.nodes.each do |node|
+        puts "binding node #{node} to #{node.mapping.name}"
       end
-      display_allocation(func.dfg)
+
+      register_allocation(func)
+
       func
     end
 
-    def display_allocation dfg
-      schedule=dfg.nodes.group_by{|node| node.cstep}
-      for cstep in 0..schedule.keys.max
-        puts "cstep #{cstep}".center(40,'=')
-        schedule[cstep].each do |node|
-          fu_name="FU#{node.mapping.id}"
-          puts "mapping (#{node.stmt.str.green}) => #{fu_name.cyan}"
+    def find_single_dim(func)
+      comp_nodes=func.dfg.nodes.select{|n| n.is_a? ComputeNode}
+      signatures={}
+      comp_nodes.each do |node|
+        signatures[node.op]||=[]
+        signatures[node.op] << {node.signature[:in] => node.signature[:out]}
+      end
+      maxbits=0
+      signatures.each do |op_kind,op_signatures|
+        op_signatures.each do |op_sig_h|
+          ary=op_sig_h.first.flatten
+          nbits=ary.map{|type| type.to_s.match(/(\d+)/)[1]}.map(&:to_i).max
+          maxbits=nbits if nbits > maxbits
+        end
+      end
+      puts "required minimal architecture : #{maxbits} bits"
+      maxbits
+    end
+
+    def get_available_fu node
+      @table||={}
+      # init list of FU AVAILABLE in this cstep :
+      #   warn : dont forget to clone (otherwise?)
+      @table[node.cstep]||=@functional_units.clone
+      case node
+      when InputNode
+        fu=RTL::Input.new(@dim)
+      when OutputNode
+        fu=RTL::Output.new(@dim)
+      when ComputeNode
+        compute_units=@table[node.cstep].select{|fu| fu.is_a? RTL::Compute}
+        if fu=compute_units.find{|fu| fu.op==node.op}
+          @table[node.cstep].delete(fu)
+        else
+          fu=RTL::Compute.new(@dim)
+          fu.op=node.op
+        end
+      when ConstNode
+        fu=RTL::Const.new(@dim)
+      else
+        raise "unknown node type #{node}"
+      end
+      @functional_units << fu unless @functional_units.include?(fu)
+      return fu
+    end
+
+    def bind_to node,fu
+      fu << node
+      node.mapping=fu
+    end
+
+    #lifetime[v] is an array of disjoint life_segments h={:birth=> cstep, :death=>cstep'}
+    def compute_lifetimes func
+      lifetime={}
+      func.dfg.nodes.each do |node|
+        case input=assign=node.stmt
+        when Arg
+          var=input
+        when Assign
+          var=assign.lhs.ref
+        end
+        if var
+          life_segment={}
+          life_segment[:birth]=node.cstep
+          max_succ=node.outputs.max_by{|succ| succ.cstep}
+          life_segment[:death]=max_succ.cstep
+          lifetime[var]||=[]
+          lifetime[var] << life_segment if life_segment[:birth]!=life_segment[:death]
+        end
+      end
+
+      # for display :
+      max_cstep=lifetime.collect{|var,life_segments| life_segments.map{|ls| ls[:death]}}.flatten.max
+
+      lifetime.each do |var,life_segments|
+        life_line=("-"*(max_cstep+1)).chars
+        life_segments.each do |life_segment_h|
+          birth=life_segment_h[:birth]
+          life_line[birth]="["
+          death=life_segment_h[:death]
+          life_line[death]="]"
+          for cstep in birth+1..death-1
+            life_line[cstep]="="
+          end
+        end
+        puts "#{var.name.str.rjust(10)} : #{life_line.join}"
+      end
+      return lifetime
+    end
+
+    def register_allocation func
+      puts " [+] register allocation"
+      lifetime=compute_lifetimes(func)
+      graph=build_compatibility_graph(lifetime)
+      graph=clique_partitioning(graph)
+      graph.nodes.each_with_index do |clique,idx|
+        reg=RTL::Register.new(name="r#{idx}")
+        clique.content.each do |var|
+          var.mapping=reg
+          puts "binding #{var.name.tok.val} to register #{name}"
         end
       end
     end
+
+    def build_compatibility_graph lifetime
+      puts "building compatibility graph"
+      graph=Allocation::Graph.new("alloc")
+      nodes_h={}
+      lifetime.keys.each do |var|
+        graph << n1=Allocation::Node.new(var.name.str)
+        n1.content << var
+        nodes_h[var]=n1
+      end
+      for v1 in lifetime.keys
+        n1=nodes_h[v1]
+        for v2 in lifetime.keys
+          unless v1==v2
+            n2=nodes_h[v2]
+            unless overlap?(lifetime[v1],lifetime[v2])
+              graph.connect n1,n2
+            end
+          end
+        end
+      end
+      graph
+    end
+
+    def overlap? segments_1,segments_2
+      rg1=segments_1.map{|h| h[:birth]..h[:death]-1}.map(&:to_a).flatten
+      rg2=segments_2.map{|h| h[:birth]..h[:death]-1}.map(&:to_a).flatten
+      rg1.intersection(rg2).any?
+    end
+
+    def clique_partitioning graph
+      puts "clique partitioning"
+      algo=Allocation::TsengSiework.new
+      result=algo.apply_to(graph)
+    end
+
   end
 end

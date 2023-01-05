@@ -36,13 +36,14 @@ module Nanga
 
     def create_tmp type
       @tmp+=1
-      name="$#{@tmp}" #warn : '$' should be a constant across Nanga
+      name="$#{@tmp}"
       if type.nil?
         type=NamedType.new(id=Ident.create("unknown"))
-        @symtable[id.str]=type
+        @symtable.set id.str,type
       end
       @decls << var=Var.new(ident=Ident.create(name),type)
-      @symtable[var.name.str]=var
+      @symtable.set var.name.str,var
+      ident.ref=var
       return ident
     end
 

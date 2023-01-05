@@ -6,18 +6,24 @@ module Nanga
       OutputNode => "green",
       ComputeNode => "cyan",
     }
+
     def color_of node
       case node
       when InputNode,OutputNode
           "green"
       when ComputeNode
-        case node.stmt.rhs.op
-        when :add,:sub
+        case (rhs=node.stmt.rhs)
+        when Binary
+          case rhs.op
+          when :add,:sub
+            "cyan"
+          when :mul
+            "orange"
+          else
+            "red"
+          end
+        when Unary, Cast
           "cyan"
-        when :mul
-          "orange"
-        else
-          "red"
         end
       when ConstNode
         "white"
@@ -46,9 +52,9 @@ module Nanga
       when InputNode
         "?"+sig_name(node)
       when OutputNode
-        "!"+sig_name(node)
+        "!ret"
       when ComputeNode
-        OP2STR[node.stmt.rhs.op]
+          OP2STR[node.stmt.rhs.op]
       when ConstNode
         node.stmt.val.str
       else
@@ -72,7 +78,7 @@ module Nanga
       code.indent=0
       code << "}"
       filename=code.save_as("#{func.name.str}.dot")
-      puts " |--[+] #{filename}"
+      puts " |--[+] generated : '#{filename}'"
       func
     end
   end
