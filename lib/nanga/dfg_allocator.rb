@@ -8,23 +8,23 @@ module Nanga
     # 2) we extract the maximum number of bits characterizing the whole architecture.
 
     def visitDef func,args=nil
+      report 0," |--[+] processing '#{func.name.str}'"
       func.dfg.nodes.sort_by!{|node| node.cstep}
 
-      @dim=find_single_dim(func)
-
+      func.dim=find_single_dim(func)
       @functional_units=[] #declared FUs
       func.dfg.nodes.each do |node|
         fu=get_available_fu(node)
         # bind node and FU
         bind_to(node,fu)
-        # now glue this FU to its binary operator :
+        # now glue this FU to its *binary* operator :
         if (assign=node.stmt).is_a?(Assign) and (bin=assign.rhs).is_a?(Binary)
           bin.mapping=fu
         end
       end
       # report Allocation :
       func.dfg.nodes.each do |node|
-        puts "binding node #{node} to #{node.mapping.name}"
+        report 1,"binding node #{node} to #{node.mapping.name}"
       end
 
       register_allocation(func)
@@ -47,7 +47,7 @@ module Nanga
           maxbits=nbits if nbits > maxbits
         end
       end
-      puts "required minimal architecture : #{maxbits} bits"
+      report 1,"     |--[+] required minimal architecture : #{maxbits} bits"
       maxbits
     end
 
@@ -117,13 +117,13 @@ module Nanga
             life_line[cstep]="="
           end
         end
-        puts "#{var.name.str.rjust(10)} : #{life_line.join}"
+        report 1,"#{var.name.str.rjust(10)} : #{life_line.join}"
       end
       return lifetime
     end
 
     def register_allocation func
-      puts " [+] register allocation"
+      report 1," [+] register allocation"
       lifetime=compute_lifetimes(func)
       graph=build_compatibility_graph(lifetime)
       graph=clique_partitioning(graph)
@@ -131,13 +131,13 @@ module Nanga
         reg=RTL::Register.new(name="r#{idx}")
         clique.content.each do |var|
           var.mapping=reg
-          puts "binding #{var.name.tok.val} to register #{name}"
+          report 1,"binding #{var.name.tok.val} to register #{name}"
         end
       end
     end
 
     def build_compatibility_graph lifetime
-      puts "building compatibility graph"
+      report 1,"building compatibility graph"
       graph=Allocation::Graph.new("alloc")
       nodes_h={}
       lifetime.keys.each do |var|
@@ -166,7 +166,7 @@ module Nanga
     end
 
     def clique_partitioning graph
-      puts "clique partitioning"
+      report 1,"clique partitioning"
       algo=Allocation::TsengSiework.new
       result=algo.apply_to(graph)
     end

@@ -32,10 +32,14 @@ module Nanga
       @outputs=[]
       @signature={in:[],out:nil}
       case stmt
+      when Const
+        @output_var=stmt
       when Arg
         @output_var=stmt
       when Assign
         @output_var=stmt.lhs.ref
+      when Return
+        @output_var=stmt.expr.ref
       end
     end
 

@@ -1,6 +1,6 @@
 module Nanga
   Root           = Struct.new(:elements)
-  Def            = Struct.new(:name,:args,:type,:decls,:body,:symtable,:dfg,:controler,:datapath) do
+  Def            = Struct.new(:name,:args,:type,:decls,:body,:symtable,:dfg,:controler,:datapath,:dim) do
     def stmts
       body.stmts
     end

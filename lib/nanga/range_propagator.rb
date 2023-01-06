@@ -14,27 +14,26 @@ module Nanga
 
     def visitArg arg,args=nil
       set_range(arg)
-      puts "range of #{arg.str} is now #{arg.range}"
+      report 1,"range of #{arg.str} is now #{arg.range}"
       arg
     end
 
     def visitVar var,args=nil
       set_range(var)
-      puts "range of #{var.str} is now #{var.range}"
       var
     end
 
     def set_range decl
-      puts "set range #{decl.str}"
+      report 1,"set range #{decl.str}"
       case decl.type.str
       when /[is](\d+)/
         nbits=$1.to_i
         min,max=-2**(nbits-1),+2**(nbits-1)-1
-        p decl.range=Interval.new(min,max)
+        decl.range=Interval.new(min,max)
       when /u(\d+)/
         nbits=$1.to_i
         min,max=0,+2**nbits-1
-        p decl.range=Interval.new(min,max)
+        decl.range=Interval.new(min,max)
       else
         #raise "ERROR : set range for #{decl.str} NIY"
       end
@@ -49,7 +48,7 @@ module Nanga
     def visitAssign assign,args=nil
       rhs=assign.rhs.accept(self)
       assign.lhs.ref.range=rhs.range # WARNING note the .ref !!!
-      puts "range of #{assign.lhs.str} is now #{rhs.range}"
+      report 1,"range of #{assign.lhs.str} is now #{rhs.range}"
       assign
     end
 
@@ -58,12 +57,12 @@ module Nanga
     end
 
     def visitBinary bin,args=nil
-      puts "visitBinary #{bin.str}"
+      report 1,"visitBinary #{bin.str}"
       l=bin.lhs.accept(self)
-      puts "has range #{l.str} : #{l.range!=nil}"
+      report 1,"has range #{l.str} : #{l.range!=nil}"
       o=bin.op
       r=bin.rhs.accept(self)
-      puts "has range #{r.str} : #{r.range!=nil}"
+      report 1,"has range #{r.str} : #{r.range!=nil}"
       bin.range=compute_range(l.range,o,r.range)
       bin
     end
@@ -87,7 +86,7 @@ module Nanga
     end
 
     def back_annotate_types def_
-      puts " |--[+] type annotations"
+      report 1," |--[+] type annotations"
       vars=def_.decls.select{|decl| decl.is_a? Var}
       undef_vars=vars.select{|var| var.type.str=="unknown"}
       undef_vars.each do |var|
@@ -96,7 +95,7 @@ module Nanga
     end
 
     def compute_type var
-      puts "compute_range #{var.str}"
+      report 1,"compute_range #{var.str}"
       min,max=var.range.min,var.range.max
       type=(min >=0) ? get_unsigned(min,max) : get_signed(min,max)
       NamedType.new(Ident.create(type))
@@ -119,8 +118,8 @@ module Nanga
       var=ret.expr.ref
       actual_ret_type=compute_type(var)
       if (spec=func.type.str)!=(actual=actual_ret_type.str)
-        puts " |--[+] error detect : func '#{func.name.str}' specifies return type '#{spec}' but computed type is '#{actual}'"
-        puts " |--[+] fixing return type to #{actual}"
+        report 1," |--[+] error detect : func '#{func.name.str}' specifies return type '#{spec}' but computed type is '#{actual}'"
+        report 1," |--[+] fixing return type to #{actual}"
         func.type=actual_ret_type
       end
     end

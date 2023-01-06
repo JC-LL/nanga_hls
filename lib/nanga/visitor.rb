@@ -56,7 +56,6 @@ module Nanga
     end
 
     def visitBody body,args=nil
-      puts "visiting body"
       body.stmts=body.stmts.map{|stmt|stmt.accept(self,args)}
       body
     end
@@ -68,7 +67,6 @@ module Nanga
     end
 
     def visitAssign assign,args=nil
-      puts "visiting #{assign.str}"
       assign.lhs=assign.lhs.accept(self,args)
       assign.rhs=assign.rhs.accept(self,args)
       assign

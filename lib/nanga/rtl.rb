@@ -1,12 +1,14 @@
 module Nanga
   module RTL
     class DatapathNode
+      attr_accessor :allocated_nodes
       def initialize
         # when 'wiring' datapath node, we systematically wire to a multiplexor (!),
         # either at the input of a dyadic operator (ALU,...), of a register, and even of
         # an output.
         # SO, the successors of a datapath node are named 'succ_muxes' instead of 'succs'.
         @succ_muxes=[]
+        @allocated_nodes=[]
       end
 
       def wiring_to element,left_or_right=nil
@@ -30,18 +32,10 @@ module Nanga
         end
         return Control.new(mux,cmd_value)
       end
-    end
 
-    class FunctionalUnit < DatapathNode
-      attr_accessor :id
-      attr_accessor :name
-      attr_accessor :nbits
-      attr_accessor :allocated_nodes
-
-      def initialize nbits
-        super()
-        @nbits=nbits
-        @allocated_nodes=[]
+      # returns the var type of the *first* allocated node... cross fingers
+      def type
+        @allocated_nodes.first.output_var.type
       end
 
       def <<(node)
@@ -49,8 +43,22 @@ module Nanga
       end
     end
 
+    class FunctionalUnit < DatapathNode
+      attr_accessor :id
+      attr_accessor :name
+      attr_accessor :nbits
+
+      def initialize nbits
+        super()
+        @nbits=nbits
+      end
+
+
+    end
+
     class Input < FunctionalUnit
       @@id=0
+      attr_accessor :id
       def initialize nbits
         super(nbits)
         @id=Input.next_id
@@ -64,7 +72,7 @@ module Nanga
 
     class Mux < DatapathNode
       @@id=0
-      attr_accessor :id
+      attr_accessor :id,:inputs
       def initialize
         @id=Mux.next_id
         @inputs=[]
@@ -76,7 +84,7 @@ module Nanga
 
       def <<(e)
         unless @inputs.include?(e)
-          puts "connecting #{e.name} to mux #{@id}"
+          #puts "connecting #{e.name} to mux #{@id}"
           @inputs << e
         end
       end
@@ -100,8 +108,8 @@ module Nanga
         mux_left=Mux.new
         mux_right=Mux.new
         @name="FU_#{@id}"
-        puts "#{@name} creating mux #{mux_left.id}"
-        puts "#{@name} creating mux #{mux_right.id}"
+        #puts "#{@name} creating mux #{mux_left.id}"
+        #puts "#{@name} creating mux #{mux_right.id}"
         @mux={left:mux_left,right:mux_right}
       end
     end
@@ -111,7 +119,7 @@ module Nanga
       def initialize nbits
         super(nbits)
         @id=Const.next_id
-        @name="Const#{@id}"
+        @name="const#{@id}"
       end
 
       def Const.next_id
@@ -136,14 +144,13 @@ module Nanga
 
     class Register < DatapathNode
       attr_accessor :name,:vars
-      attr_accessor :type
       attr_accessor :mux
       def initialize name
         super()
         @name=name
         @vars=[]
         @mux=Mux.new
-        puts "reg #{@name} creating #{@mux.id}"
+        #puts "reg #{@name} creating #{@mux.id}"
       end
 
       def << vars
@@ -161,7 +168,7 @@ module Nanga
 
       def <<(e)
         unless @elements.include?(e)
-          puts "datapath : insert '#{e.name}'"
+          #puts "datapath : insert '#{e.name}'"
           @elements << e
         end
       end
@@ -185,7 +192,7 @@ module Nanga
         @controls.each do |ctrl|
           return if ctrl.to_s==control.to_s
         end
-        puts "adding control #{control.to_s} to state #{@id}"
+        #puts "adding control #{control.to_s} to state #{@id}"
         @controls << control
       end
     end

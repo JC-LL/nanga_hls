@@ -1,7 +1,8 @@
 module Nanga
-  class DfgScheduler < Visitor
+  class DfgScheduler < CompilerPass
 
     def visitDef func,algo_name
+      report 0," |--[+] processing '#{func.name.str}'"
       inputs=func.dfg.nodes.select{|node| node.is_a?(InputNode)}
       case algo_name
       when :asap
@@ -25,9 +26,9 @@ module Nanga
     def display_scheduling dfg
       schedule=dfg.nodes.group_by{|node| node.cstep}
       for cstep in 0..schedule.keys.max
-        puts "cstep #{cstep}".center(40,'=')
+        report 1,"cstep #{cstep}".center(40,'=')
         schedule[cstep].each do |node|
-          puts node.stmt.str
+          report 1,node.stmt.str
         end
       end
     end

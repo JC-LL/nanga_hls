@@ -1,7 +1,7 @@
 module Nanga
   class DfgGen < Visitor
     def visitDef func,args=nil
-      puts " |--[+] dfg for '#{func.name.str}'"
+      puts " |--[+] processing '#{func.name.str}'"
       func.dfg=collecting(func)
       #linking(func.dfg)
       walk_and_link(func.dfg)

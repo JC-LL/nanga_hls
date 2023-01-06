@@ -7,6 +7,7 @@ module Nanga
 
     def initialize options={}
       @options=options
+      $verbosity=0
     end
 
     def compile filename
@@ -15,7 +16,6 @@ module Nanga
         puts "[+] resolving references"
         ast=resolve(ast)
         print(ast)
-
 
         puts "[+] elaborate intermediate representation"
         ir=build_ir(ast)
@@ -46,10 +46,10 @@ module Nanga
         ir=allocation(ir)
         save(ir,"5_al")
 
-        puts "[+] controler-datapath extraction : "
+        puts "[+] extracting fsm/datapath"
         ir=extract_controler_datapath(ir)
 
-        puts "[+] VHDL generation : "
+        puts "[+] VHDL generation"
         top_level=vhdl_generation(ir)
 
       rescue Exception => e
@@ -64,8 +64,10 @@ module Nanga
     end
 
     def print ast,verbose=false
-      code=PrettyPrinter.new.print(ast)
-      puts code.finalize
+      if $verbosity > 0
+        code=PrettyPrinter.new.print(ast)
+        puts code.finalize
+      end
     end
 
     def save ast,tag
@@ -111,7 +113,7 @@ module Nanga
     end
 
     def extract_controler_datapath ast
-      ControlerDatapathExtractor.new.run(ast)
+      Extractor.new.run(ast)
     end
 
     def vhdl_generation ast
