@@ -12,6 +12,7 @@ module Nanga
       end
 
       def wiring_to element,left_or_right=nil
+        puts "wiring #{self.name} to #{element.name} [#{left_or_right}]"
         # Dyadic operators have a mux at their respective inputs : left and right.
         # When connecting, we indicate this assignement.
         # ---
@@ -52,8 +53,6 @@ module Nanga
         super()
         @nbits=nbits
       end
-
-
     end
 
     class Input < FunctionalUnit
@@ -84,7 +83,7 @@ module Nanga
 
       def <<(e)
         unless @inputs.include?(e)
-          #puts "connecting #{e.name} to mux #{@id}"
+          puts "connecting #{e.name} to mux #{@id}"
           @inputs << e
         end
       end
@@ -124,6 +123,10 @@ module Nanga
 
       def Const.next_id
         @@id+=1
+      end
+
+      def value
+        @allocated_nodes.first.output_var.val
       end
     end
 
@@ -190,9 +193,15 @@ module Nanga
       def <<(control)
         # check that this control i not aleady registered
         @controls.each do |ctrl|
-          return if ctrl.to_s==control.to_s
+          if ctrl.mux==control.mux
+            if ctrl.value!=control.value
+              raise "ERROR: mux #{control.mux.id} is already assigned (with a different value) during state #{@id}"
+            else
+              return
+            end
+          end
         end
-        #puts "adding control #{control.to_s} to state #{@id}"
+        puts "adding control #{control.to_s} to state #{@id}"
         @controls << control
       end
     end

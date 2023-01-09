@@ -239,7 +239,7 @@ module Nanga
       code.indent=2
       code << "-- declare constants"
       consts.sort_by{|const| const.name}.each do |const|
-        code << "signal #{const.name.downcase} : #{type};"
+        code << "constant #{const.name.downcase} : #{type} := to_signed(#{const.value.str},#{func.dim});"
       end
       code << "-- declare registers"
       regs.sort_by{|reg| reg.name}.each do |reg|
@@ -293,28 +293,40 @@ module Nanga
         code << "-- #{fu.name.center(50,'.')}"
         # ====== LEFT
         mux=fu.mux[:left]
-        assign_indent="#{fu.name}_left <=".size
-        code << "#{fu.name}_left <= #{sig_names[mux.inputs.first]} when controls.mux_#{mux.id}=1 else"
-        code.indent=2+assign_indent+1
-        mux.inputs[1..-2].each_with_index do |input,idx|
-          code << "#{sig_names[input]} when controls.mux_#{mux.id}=#{idx+1} else"
+        if mux.inputs.size > 1
+          assign_indent="#{fu.name}_left <=".size
+          code << "#{fu.name}_left <= #{sig_names[mux.inputs.first]} when controls.mux_#{mux.id}=1 else"
+          code.indent=2+assign_indent+1
+          mux.inputs[1..-2].each_with_index do |input,idx|
+            code << "#{sig_names[input]} when controls.mux_#{mux.id}=#{idx+1} else"
+          end
+          code << "#{sig_names[mux.inputs.last]};"
+        else
+          code << "#{fu.name}_left <= #{sig_names[mux.inputs.first]};"
         end
-        code << "#{sig_names[mux.inputs.last]};"
         code.indent=2
         # ===== RIGHT
         mux=fu.mux[:right]
         assign_indent="#{fu.name}_right <=".size
-        code << "#{fu.name}_right <= #{sig_names[mux.inputs.first]} when controls.mux_#{mux.id}=1 else"
-        code.indent=2+assign_indent+1
-        mux.inputs[1..-2].each_with_index do |input,idx|
-          code << "#{sig_names[input]} when controls.mux_#{mux.id}=#{idx+1} else"
+        if mux.inputs.size > 1
+          code << "#{fu.name}_right <= #{sig_names[mux.inputs.first]} when controls.mux_#{mux.id}=1 else"
+          code.indent=2+assign_indent+1
+          mux.inputs[1..-2].each_with_index do |input,idx|
+            code << "#{sig_names[input]} when controls.mux_#{mux.id}=#{idx+1} else"
+          end
+          code << "#{sig_names[mux.inputs.last]};"
+        else
+          code << "#{fu.name}_right <= #{sig_names[mux.inputs.first]};"
         end
-        code << "#{sig_names[mux.inputs.last]};"
         code.indent=2
         # ===== operations
         op=NANGA_TO_VHDL_OPERATORS[fu.op]
         code << "#{sig_names[fu]} <= resize(#{fu.name}_left #{op} #{fu.name}_right,#{func.dim});"
         code.newline
+      end
+      code  << "-- connect output"
+      outputs.each do |output|
+        code << "#{output.name} <= #{output.mux.inputs.first.name};"
       end
       code.indent=0
       code << "end rtl;"
@@ -356,6 +368,7 @@ module Nanga
       code.indent=0
       code << "begin"
       code.indent=2
+      code.newline
       code << "-- "+"controler instanciation".center(40,'=')
       code << "controler_i: entity #{func.name.str}_lib.#{func.name.str}_controler"
       code << "port map("
@@ -375,8 +388,8 @@ module Nanga
       code << "reset_n  => reset_n,"
       code << "clk      => clk,"
       code << "controls => controls,"
-      func.args.each_with_index do |arg,idx|
-        input=datapath_inputs.find{|input| input.allocated_nodes.find{|n| n.output_var=arg}}
+      func.args.each do |arg|
+        input=datapath_inputs.find{|input| input.allocated_nodes.find{|n| n.output_var==arg}}
         code << "#{input.name} => #{arg.name.str},"
       end
       code << "#{datapath_outputs.first.name} => result"

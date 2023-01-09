@@ -24,7 +24,7 @@ module Nanga
       end
       # report Allocation :
       func.dfg.nodes.each do |node|
-        report 1,"binding node #{node} to #{node.mapping.name}"
+        report 0,"binding node #{node} to #{node.mapping.name}"
       end
 
       register_allocation(func)
@@ -117,7 +117,7 @@ module Nanga
             life_line[cstep]="="
           end
         end
-        report 1,"#{var.name.str.rjust(10)} : #{life_line.join}"
+        report 0,"#{var.name.str.rjust(10)} : #{life_line.join}"
       end
       return lifetime
     end
@@ -131,7 +131,7 @@ module Nanga
         reg=RTL::Register.new(name="r#{idx}")
         clique.content.each do |var|
           var.mapping=reg
-          report 1,"binding #{var.name.tok.val} to register #{name}"
+          report 0,"binding #{var.name.tok.val} to register #{name}"
         end
       end
     end
