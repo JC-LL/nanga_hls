@@ -10,21 +10,16 @@ module Nanga
     def visitDef func,args=nil
       report 0," |--[+] processing '#{func.name.str}'"
       func.dfg.nodes.sort_by!{|node| node.cstep}
-
       func.dim=find_single_dim(func)
-      @functional_units=[] #declared FUs
+      init_resource_allocation(func)
       func.dfg.nodes.each do |node|
-        fu=get_available_fu(node)
-        # bind node and FU
+        fu=get_an_available_fu_in_cstep(node)
+        #bind node and FU
         bind_to(node,fu)
-        # now glue this FU to its *binary* operator :
-        if (assign=node.stmt).is_a?(Assign) and (bin=assign.rhs).is_a?(Binary)
-          bin.mapping=fu
-        end
       end
       # report Allocation :
       func.dfg.nodes.each do |node|
-        report 0,"binding node #{node} to #{node.mapping.name}"
+        report 0,"binding node #{node} to #{node.mapping}"
       end
 
       register_allocation(func)
@@ -32,50 +27,86 @@ module Nanga
       func
     end
 
-    def find_single_dim(func)
-      comp_nodes=func.dfg.nodes.select{|n| n.is_a? ComputeNode}
-      signatures={}
-      comp_nodes.each do |node|
-        signatures[node.op]||=[]
-        signatures[node.op] << {node.signature[:in] => node.signature[:out]}
-      end
-      maxbits=0
-      signatures.each do |op_kind,op_signatures|
-        op_signatures.each do |op_sig_h|
-          ary=op_sig_h.first.flatten
-          nbits=ary.map{|type| type.to_s.match(/(\d+)/)[1]}.map(&:to_i).max
-          maxbits=nbits if nbits > maxbits
-        end
-      end
-      report 1,"     |--[+] required minimal architecture : #{maxbits} bits"
-      maxbits
+    def init_resource_allocation func
+      report 1,"|--[+] initializing resource allocation for '#{func.name.str}'"
+      @functional_units=[] #declared FUs
+      csteps=func.dfg.nodes.collect{|node| node.cstep}.uniq
+      @max_cstep=csteps.max
+      @availability=csteps.map{|cstep| [cstep,[]]}.to_h
     end
 
-    def get_available_fu node
-      @table||={}
-      # init list of FU AVAILABLE in this cstep :
-      #   warn : dont forget to clone (otherwise?)
-      @table[node.cstep]||=@functional_units.clone
-      case node
-      when InputNode
-        fu=RTL::Input.new(@dim)
-      when OutputNode
-        fu=RTL::Output.new(@dim)
-      when ComputeNode
-        compute_units=@table[node.cstep].select{|fu| fu.is_a? RTL::Compute}
-        if fu=compute_units.find{|fu| fu.op==node.op}
-          @table[node.cstep].delete(fu)
-        else
-          fu=RTL::Compute.new(@dim)
-          fu.op=node.op
-        end
-      when ConstNode
-        fu=RTL::Const.new(@dim)
+    def get_an_available_fu_in_cstep node
+      report 1,"fu for #{node.str}"
+      cstep=node.cstep
+      # search
+      puts "searching #{node.signature}"
+      if fu=@availability[cstep].find{|unit| unit.signature==node.signature}
+        @availability[cstep].delete fu
+        return fu
       else
-        raise "unknown node type #{node}"
+        puts "no FU found for #{node.str} in cstep #{cstep}"
+        # allocate
+        new_fu=allocation_for(node)
+        # makes fu available for next cteps :
+        (cstep+1..@max_cstep).each{|cstep_| @availability[cstep_] << new_fu unless new_fu.is_a?(RTL::Const)}
+        return new_fu
       end
-      @functional_units << fu unless @functional_units.include?(fu)
-      return fu
+    end
+
+    def allocation_for node
+      report 1,"allocation for node #{node.class} (#{node.str})"
+      # creates a FU with same i/o types
+      case node
+      when Arg
+        ret=RTL::Input.new(node.name.str)
+      when Return
+        ret=RTL::Output.new(node.get_input(0).name)
+      when Binary
+        case node.op
+        when :add
+          ret=RTL::Add.new
+        when :sub
+          ret=RTL::Sub.new
+        when :mul
+          ret=RTL::Mul.new
+        when :div
+          ret=RTL::Div.new
+        else
+          raise "NIY : #{node.op}"
+        end
+      when Unary
+        raise "NIY : #{node.op}"
+      when Const
+        ret=RTL::Const.new(node.val)
+      else
+        raise "BUG during allocation : #{node.class} NIY"
+      end
+      copy_signature(node,ret)
+      ret
+    end
+
+    def copy_signature node,fu
+      report 1,"copy signature #{node} #{fu}"
+      node.inputs.each_with_index{|input,i| fu.get_input(i).type=input.type}
+      fu.output.type=node.output.type if node.output
+    end
+
+    def find_single_dim(func)
+      type_names=func.dfg.edges.collect{|edge| edge.var.type}.map{|type| type.str}.uniq
+      if type_names.all?{|name| name.match(/[us]\d+/)}
+        max_bits=type_names.map{|name| name.match(/[us](\d+)/)[1].to_i}.max
+        report 1,"     |--[+] required minimal architecture : #{@max_bits} bits"
+        if all_unsigned=type_names.all?{|name| name.match(/u\d+/)}
+          @max_type=NamedType.create "u#{@max_bits}"
+          report 1,"     |--[+] optimal type : #{@max_type.str}"
+        else
+          @max_type=NamedType.create "s#{@max_bits}"
+          report 1,"     |--[+] optimal type : #{@max_type.str}"
+        end
+      else
+        report 1,"     |--[+] cannot determine #bits for this program."
+      end
+      return max_bits
     end
 
     def bind_to node,fu
@@ -85,22 +116,18 @@ module Nanga
 
     #lifetime[v] is an array of disjoint life_segments h={:birth=> cstep, :death=>cstep'}
     def compute_lifetimes func
+      report 1,"compute variables lifetimes"
       lifetime={}
-      func.dfg.nodes.each do |node|
-        case input=assign=node.stmt
-        when Arg
-          var=input
-        when Assign
-          var=assign.lhs.ref
-        end
-        if var
-          life_segment={}
-          life_segment[:birth]=node.cstep
-          max_succ=node.outputs.max_by{|succ| succ.cstep}
-          life_segment[:death]=max_succ.cstep
-          lifetime[var]||=[]
-          lifetime[var] << life_segment if life_segment[:birth]!=life_segment[:death]
-        end
+      # edges can convey : Arg, Var, Const
+      func.dfg.edges.reject{|edge| edge.var.is_a?(Const)}.each do |edge|
+        report 2, "processing edge #{edge.to_s}"
+        var=edge.var
+        lifetime[var]||=[]
+        life_segment={}
+        life_segment[:birth]=edge.source.node.cstep
+        life_segment[:death]=edge.sink.node.cstep
+        report 2,"lifetime of #{var.name.str} : ...#{life_segment}"
+        lifetime[var] << life_segment if life_segment[:birth]!=life_segment[:death]
       end
 
       # for display :
@@ -112,7 +139,7 @@ module Nanga
           birth=life_segment_h[:birth]
           life_line[birth]="["
           death=life_segment_h[:death]
-          life_line[death]="]"
+          life_line[death]="]" unless life_line[death]=="="
           for cstep in birth+1..death-1
             life_line[cstep]="="
           end
@@ -128,10 +155,11 @@ module Nanga
       graph=build_compatibility_graph(lifetime)
       graph=clique_partitioning(graph)
       graph.nodes.each_with_index do |clique,idx|
-        reg=RTL::Register.new(name="r#{idx}")
+        reg_type=clique.content.first.type
+        reg=RTL::Reg.new(reg_type)
         clique.content.each do |var|
-          var.mapping=reg
-          report 0,"binding #{var.name.tok.val} to register #{name}"
+          var.register=reg
+          report 0,"mapping [#{var.class}]#{var.name.str} to register #{reg.id}"
         end
       end
     end

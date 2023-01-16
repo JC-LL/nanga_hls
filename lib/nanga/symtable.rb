@@ -1,5 +1,6 @@
 module Nanga
   class Scope
+    attr_accessor :table
     def initialize
       @table={}
     end

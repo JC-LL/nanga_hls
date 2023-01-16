@@ -111,7 +111,7 @@ module Nanga
       case binary.mapping
       when Ident
         (mapping=("@"+binary.mapping.accept(self))) if binary.mapping
-      when RTL::Compute
+      when Dataflow::Node
         mapping="@"+binary.mapping.name
       end
       "#{lhs} #{op}#{mapping} #{rhs}"

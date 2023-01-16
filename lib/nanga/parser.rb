@@ -148,24 +148,6 @@ module Nanga
       Cstep.new(id,body)
     end
 
-    # range attribute can either be a NamedType or Interval
-    def parse_range
-      if show_next.kind==:lbrace
-        accept_it
-        parse_type
-        expect :rbrace
-      end
-      return nil
-    end
-
-    def parse_mapping
-      if show_next.is_a? :at
-        expect :at
-        name=Ident.new(expect :ident)
-        return Mapping.new(name)
-      end
-    end
-
     def parse_return
       expect :return
       e=parse_expression
@@ -221,7 +203,6 @@ module Nanga
       e1=parse_arith
       while show_next.is_a? [:lshift,:rshift]
         tok=accept_it
-        map=parse_mapping
         e2=parse_arith()
         e1=Binary.new(e1,tok.kind,e2,map)
       end
@@ -232,9 +213,8 @@ module Nanga
       e1=parse_term()
       while show_next.is_a? [:add,:sub]
         tok=accept_it
-        map=parse_mapping()
         e2=parse_term()
-        e1=Binary.new(e1,tok.kind,e2,map)
+        e1=Binary.new(e1,tok.kind,e2)
       end
       return e1
     end
@@ -243,9 +223,8 @@ module Nanga
       e1=parse_power()
       while show_next.is_a? [:mul,:div,:mod]
         tok=accept_it
-        map=parse_mapping()
         e2=parse_power()
-        e1=Binary.new(e1,tok.kind,e2,map)
+        e1=Binary.new(e1,tok.kind,e2)
       end
       return e1
     end
@@ -264,9 +243,7 @@ module Nanga
       case show_next.kind
       when :ident
         tok=accept_it
-        dyn=parse_range()
-        map=parse_mapping()
-        Ident.new(tok,dyn,map)
+        Ident.new(tok)
       when :int_literal
         tok=accept_it
         IntLit.new(tok)

@@ -1,67 +1,39 @@
 module Nanga
   module RTL
-    class DatapathNode
-      attr_accessor :allocated_nodes
-      def initialize
-        # when 'wiring' datapath node, we systematically wire to a multiplexor (!),
-        # either at the input of a dyadic operator (ALU,...), of a register, and even of
-        # an output.
-        # SO, the successors of a datapath node are named 'succ_muxes' instead of 'succs'.
-        @succ_muxes=[]
-        @allocated_nodes=[]
-      end
-
-      def wiring_to element,left_or_right=nil
-        puts "wiring #{self.name} to #{element.name} [#{left_or_right}]"
-        # Dyadic operators have a mux at their respective inputs : left and right.
-        # When connecting, we indicate this assignement.
-        # ---
-        # In response, 'wiring_to' method returns the mux control index for this transfert
-        # (namely the index of the connexion, that will serve as FSM control)
-        # Note that index 0 is never returned, and will serve as a control that "does nothing"
-        # or, for Reg, that loops back.
-        # --
-        # Stated differently, to operate, the transfert must use a value different from 0.
-        if left_or_right
-          @succ_muxes << element.mux[left_or_right]
-          (mux=element.mux[left_or_right]) << self
-          cmd_value=mux.size
-        else # reg etc
-          @succ_muxes << element.mux
-          (mux=element.mux) << self
-          cmd_value=mux.size
-        end
-        return Control.new(mux,cmd_value)
-      end
-
-      # returns the var type of the *first* allocated node... cross fingers
-      def type
-        @allocated_nodes.first.output_var.type
-      end
+    class DatapathNode < Dataflow::Node
+      attr_accessor :id
 
       def <<(node)
+        @allocated_nodes||=[]
         @allocated_nodes << node
       end
-    end
 
-    class FunctionalUnit < DatapathNode
-      attr_accessor :id
-      attr_accessor :name
-      attr_accessor :nbits
-
-      def initialize nbits
-        super()
-        @nbits=nbits
+      def name
+        self.class.to_s.split('::').last.downcase+"_#{@id}"
       end
     end
 
-    class Input < FunctionalUnit
-      @@id=0
-      attr_accessor :id
-      def initialize nbits
-        super(nbits)
+    class Input < DatapathNode
+      @@id=-1
+      attr_accessor :name
+      def initialize name=nil
+        super([],name)
         @id=Input.next_id
-        @name="I#{@id}"
+        @name=name||"I#{@id}"
+      end
+
+      def Input.next_id
+        @@id+=1
+      end
+    end
+
+    class Output < DatapathNode
+      @@id=-1
+      attr_accessor :name
+      def initialize name=nil
+        super([name],nil)
+        @id=Input.next_id
+        @name=name||"0#{@id}"
       end
 
       def Input.next_id
@@ -71,21 +43,16 @@ module Nanga
 
     class Mux < DatapathNode
       @@id=0
-      attr_accessor :id,:inputs
+      attr_accessor:name
       def initialize
+        super([],"f")
         @id=Mux.next_id
-        @inputs=[]
+        @name="mux_#{@id}"
+        puts "creating mux #{@name}"
       end
 
       def Mux.next_id
         @@id+=1
-      end
-
-      def <<(e)
-        unless @inputs.include?(e)
-          puts "connecting #{e.name} to mux #{@id}"
-          @inputs << e
-        end
       end
 
       def size
@@ -93,67 +60,110 @@ module Nanga
       end
     end
 
-    class Compute < FunctionalUnit
-      attr_accessor :op,:mux
-
-      def Compute.next_id
-        @@id||=0
-        @@id+=1
+    class FunctionalUnit < DatapathNode
+      attr_accessor :mux
+      def initialize
+        super(["i0",'i1'],"f")
+        @mux={left:mux_l=Mux.new,right:mux_r=Mux.new}
+        #mux_l.output.to self.get_input(0)
+        #mux_r.output.to self.get_input(1)
       end
 
-      def initialize nbits
-        super(nbits)
-        @id=Compute.next_id
-        mux_left=Mux.new
-        mux_right=Mux.new
-        @name="FU_#{@id}"
-        #puts "#{@name} creating mux #{mux_left.id}"
-        #puts "#{@name} creating mux #{mux_right.id}"
-        @mux={left:mux_left,right:mux_right}
+      def op
+        self.class.to_s.split('::').last.downcase.to_sym
       end
     end
 
-    class Const < FunctionalUnit
-      @@id=0
-      def initialize nbits
-        super(nbits)
+    class Add < FunctionalUnit
+      @@id=-1
+      def initialize
+        super()
+        @id=Add.next_id
+      end
+
+      def Add.next_id
+        @@id+=1
+      end
+    end
+
+    class Sub < FunctionalUnit
+      @@id=-1
+      attr_accessor :id,:name
+      def initialize
+        super()
+        @id=Sub.next_id
+      end
+
+      def Add.next_id
+        @@id+=1
+      end
+    end
+
+    class Mul < FunctionalUnit
+      @@id=-1
+      attr_accessor :id
+      def initialize
+        super()
+        @id=Mul.next_id
+      end
+
+      def Mul.next_id
+        @@id+=1
+      end
+    end
+
+    class Div < FunctionalUnit
+      @@id=-1
+      attr_accessor :id
+      def initialize
+        super()
+        @id=Div.next_id
+      end
+
+      def Div.next_id
+        @@id+=1
+      end
+    end
+
+    class Const < DatapathNode
+      @@id=-1
+      attr_accessor :val
+      def initialize val
+        super([],"o")
+        @val=val
         @id=Const.next_id
-        @name="const#{@id}"
+        @name="const#{@id}_#{val}"
       end
 
       def Const.next_id
         @@id+=1
       end
-
-      def value
-        @allocated_nodes.first.output_var.val
-      end
     end
 
-    class Output < FunctionalUnit
-      @@id=0
+    class Reg < DatapathNode
+      @@id=-1
+      attr_accessor :vars
       attr_accessor :mux
-      def initialize nbits
-        super(nbits)
-        @id=Output.next_id
-        @name="O#{@id}"
-        @mux=Mux.new
-      end
+      attr_accessor :type
+      def initialize type
+        super(["d"],"q")
+        @type=type
+        self.get_input(0).type=type
+        self.output.type=type
 
-      def Output.next_id
-        @@id+=1
-      end
-    end
-
-    class Register < DatapathNode
-      attr_accessor :name,:vars
-      attr_accessor :mux
-      def initialize name
-        super()
-        @name=name
+        @id=Reg.next_id
         @vars=[]
         @mux=Mux.new
+        @mux.output.to self.get_input(0)
+        new_input_name="i0"
+        new_input=Dataflow::Port.new(mux,new_input_name)
+        @mux.inputs << new_input
+        output.to new_input
         #puts "reg #{@name} creating #{@mux.id}"
+      end
+
+      def Reg.next_id
+        @@id+=1
       end
 
       def << vars
@@ -162,27 +172,26 @@ module Nanga
       end
     end
 
-    class Datapath
-      attr_accessor :name,:elements
-      def initialize name
-        @elements=[]
-        @name=name
-      end
-
-      def <<(e)
-        unless @elements.include?(e)
-          #puts "datapath : insert '#{e.name}'"
-          @elements << e
+    class Datapath < Dataflow::Graph
+      def edges
+        return @edges if @edges
+        @edges=[]
+        nodes_with_output=nodes.reject{|node| node.output.nil?}
+        nodes_with_output.each do |node|
+          var_name=node.name # warn : a String here. Differs from Dfg
+          node.output.fanout.each do |dst|
+            @edges << Dataflow::Edge.new(node.output,dst,var_name)
+          end
         end
-      end
-
-      def include?(e)
-        @elements.include?(e)
+        @edges.each do |edge|
+          puts "edge #{edge.source} #{edge.sink} #{edge.var}"
+        end
+        @edges
       end
     end
 
     class State
-      @@id=-1
+      @@id=-1 # idle = 0
       attr_accessor :controls
       attr_accessor :id
       def initialize
@@ -191,17 +200,20 @@ module Nanga
       end
 
       def <<(control)
-        # check that this control i not aleady registered
+        puts "state #{@id} : pushing transfer mux #{control.mux.id} #{control.value}"
+        # check that this control i not already registered
         @controls.each do |ctrl|
           if ctrl.mux==control.mux
             if ctrl.value!=control.value
-              raise "ERROR: mux #{control.mux.id} is already assigned (with a different value) during state #{@id}"
+              puts "ERROR: mux #{control.mux.id} is already assigned (with a value #{ctrl.value}) during state #{@id}"
+              puts "new value is #{control.value}"
+              raise
             else
               return
             end
           end
         end
-        puts "adding control #{control.to_s} to state #{@id}"
+        #puts "adding control #{control.to_s} to state #{@id}"
         @controls << control
       end
     end
@@ -219,10 +231,8 @@ module Nanga
 
     class Controler
       attr_accessor :states
-      attr_accessor :name
-      def initialize name
-        @name=name
-        @states=[idle=State.new]
+      def initialize
+        @states=[idle=State.new] #idle = -1
       end
 
       def <<(state)

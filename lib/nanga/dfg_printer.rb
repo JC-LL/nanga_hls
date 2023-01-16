@@ -1,85 +1,38 @@
 module Nanga
+
   class DfgPrinter < Visitor
-
-    COLORS={
-      InputNode => "green",
-      OutputNode => "green",
-      ComputeNode => "cyan",
-    }
-
-    def color_of node
-      case node
-      when InputNode,OutputNode
-          "green"
-      when ComputeNode
-        case (rhs=node.stmt.rhs)
-        when Binary
-          case rhs.op
-          when :add,:sub
-            "cyan"
-          when :mul
-            "orange"
-          else
-            "red"
-          end
-        when Unary, Cast
-          "cyan"
-        end
-      when ConstNode
-        "white"
-      else
-        raise "NIY #{node}"
-      end
-    end
-
-    def sig_name node
-      case node
-      when InputNode
-        node.stmt.name.tok.val
-      when OutputNode
-        node.stmt.expr.tok.val
-      when ComputeNode
-        node.stmt.lhs.tok.val
-      when ConstNode
-        node.stmt.name.tok.val
-      else
-        raise "NIY #{node}"
-      end
-    end
-
-    def label_of node
-      case node
-      when InputNode
-        "?"+sig_name(node)
-      when OutputNode
-        "!ret"
-      when ComputeNode
-          OP2STR[node.stmt.rhs.op]
-      when ConstNode
-        node.stmt.val.str
-      else
-        raise "NIY #{node}"
-      end
-    end
 
     def visitDef func,args=nil
       code=Code.new
       code << "digraph G {"
       code.indent=2
-      func.dfg.each do |node|
-        code << "#{node.object_id} [shape=circle, style=filled, fillcolor=#{color_of(node)}, label=\"#{label_of(node)}\"];"
-      end
-      func.dfg.each do |node|
-        node.inputs.each do |input|
-          name=sig_name(input)
-          code << "#{input.object_id} -> #{node.object_id} [label=\"#{name}\"]"
+      func.dfg.nodes.each{|node| code << declare(node)}
+
+      func.dfg.nodes.each do |node|
+        port_src=node.output
+        unless node.output.nil?
+          node.output.fanout.each do |port_dest|
+            code << "#{node.object_id}:#{port_src.name} -> #{(dest=port_dest.node).object_id}:#{port_dest.name}[label=\"#{port_src.name}\"]"
+          end
         end
       end
       code.indent=0
       code << "}"
       filename=code.save_as("#{func.name.str}.dot")
+      #puts code.finalize
       puts " |--[+] generated : '#{filename}'"
       func
+    end
+
+    def declare node
+      code=Code.new
+      inputs=node.inputs.map{|port| "<#{port.name}>#{port.name}"}.join("|")
+      output="<#{str=node.output.name}>#{str}" if node.output
+      fanin="{#{inputs}}"
+      fanout="|{#{output}}"
+      label="{#{fanin}| #{node.str}#{fanout}}"
+      code << "#{node.object_id}[shape=record; style=filled;color=cadetblue; label=\"#{label}\"]"
+      code
     end
   end
 end

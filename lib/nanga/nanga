@@ -1,4 +1,0 @@
-#!/usr/bin/env ruby
-
-require_relative '../lib/nanga'
-Nanga::Runner.run(*ARGV)

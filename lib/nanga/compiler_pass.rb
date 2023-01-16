@@ -1,12 +1,11 @@
 module Nanga
   class CompilerPass < Visitor
-    def hit_a_key
-      puts "hit a key"
-      $stdin.gets
-    end
-
-    def report verbosity_level,str
-      puts str if $verbosity >= verbosity_level
+    include Reporting
+    def pass level,str
+      prefix="[+] "
+      prefix="|--"+prefix if level > 0
+      str=prefix+str
+      puts str if $verbosity >= level
     end
   end
 end

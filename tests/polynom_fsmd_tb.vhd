@@ -58,7 +58,7 @@ begin
       go      => go     ,
       done    => done   ,
       x       => x      ,
-      result  => result
+      func_return  => result
     );
   --------------------------------------------------------------------------------
   -- sequential stimuli

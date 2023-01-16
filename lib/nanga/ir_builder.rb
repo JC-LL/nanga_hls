@@ -6,7 +6,6 @@ module Nanga
       ast.accept(self)
     end
 
-
     def visitReturn ret,args=nil
       e=ret.expr.accept(self)
       if e.is_a?(Binary)

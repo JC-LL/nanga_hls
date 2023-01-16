@@ -40,6 +40,7 @@ class Code
     str=self.finalize
     str.gsub!(/\s*\,\s*\)/,')')
     str.gsub!(/\s*\;\s*\)/,')')
+    str.gsub!(/\$/,'_t')
     File.open(filename,'w'){|f| f.puts(str)}
     puts "=> code saved as : #{filename}" if verbose
     return filename

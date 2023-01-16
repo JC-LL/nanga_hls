@@ -1,29 +1,99 @@
 module Nanga
-  Root           = Struct.new(:elements)
-  Def            = Struct.new(:name,:args,:type,:decls,:body,:symtable,:dfg,:controler,:datapath,:dim) do
-    def stmts
-      body.stmts
+
+  include Dataflow
+
+  #===================== AST =======================
+  module Visitable
+    def accept(visitor, arg=nil)
+      name = self.class.name.split(/::/).last
+      visitor.send("visit#{name}".to_sym, self ,arg) # Metaprograming !
     end
 
-    def consts
-      decls.select{|decl| decl.is_a? Const}
+    def str
+      self.accept(Nanga::PrettyPrinter.new).to_s
     end
   end
 
-  Arg            = Struct.new(:name,:type,:range,:mapping)
-  Const          = Struct.new(:name,:type,:val,:range,:mapping)
-  Var            = Struct.new(:name,:type,:range,:mapping)
+  class Root
+    include Visitable
+    attr_accessor :elements
+    def initialize elements=[]
+      @elements=elements
+    end
+  end
 
+  class Def
+    include Visitable
+    attr_accessor :name,:args,:type
+    attr_accessor :decls,:body
+    attr_accessor :symtable
+    attr_accessor :dfg
+    attr_accessor :dim
+    attr_accessor :controler,:datapath
+
+    def initialize name,args,type,decls,body
+      @name,@args,@type,@decls,@body=name,args,type,decls,body
+    end
+
+    def stmts
+      @body.stmts
+    end
+
+    def consts
+      @decls.select{|decl| decl.is_a? Const}
+    end
+  end
+
+  class Arg < Dataflow::BehavioralNode
+    include Visitable
+    attr_accessor :name,:type
+    attr_accessor :range
+    attr_accessor :mapping  # WARNING : for Node allocation
+    attr_accessor :register # WARNING : for Edge allocation
+    def initialize name_,type
+      super([],name_.str) # creates Node output
+      @name,@type=name_,type
+    end
+  end
+
+  class Var < Dataflow::BehavioralNode
+    include Visitable
+    attr_accessor :name,:type
+    attr_accessor :range
+    attr_accessor :register #WARNING : for Edge allocation
+    def initialize name,type=nil
+      super([],name.str)
+      @name,@type=name,type
+    end
+  end
+
+  # declared const
+  class Const < Dataflow::BehavioralNode
+    include Visitable
+    attr_accessor :name,:type,:val
+    attr_accessor :range
+    attr_accessor :mapping
+    def initialize name,type,val
+      super([],name.str)
+      @name,@type,@val=name,type,val
+      #@range=Interval.new()
+    end
+  end
 
   INT_TYPE_RX=Regexp.new('[us](\d+)') #WARN : single quotes!!!
 
-  NamedType      = Struct.new(:name) do
+  class NamedType
+    include Visitable
+    attr_accessor :name
+    def initialize name
+      @name=name
+    end
 
     def self.create str
       NamedType.new Ident.create str
     end
 
-    def nbits
+      def nbits
       name.str.match(INT_TYPE_RX)[1].to_i
     end
 
@@ -47,35 +117,126 @@ module Nanga
     end
   end
 
-  Interval       = Struct.new(:min,:max)
-  Mapping        = Struct.new(:name)
+  class Interval
+    include Visitable
+    attr_accessor :min,:max
+    def initialize min,max
+      @min,@max=min,max
+    end
+  end
 
-  Body           = Struct.new(:stmts) do
+  class Mapping
+    include Visitable
+    attr_accessor :name
+    def initialize name
+      @name=name
+    end
+  end
+
+  class Body
+    include Visitable
+    attr_accessor :stmts
+    def initialize stmts=[]
+      @stmts=stmts
+    end
     def each &block
       @stmts.each(&block)
     end
   end
+  #================= Statements ============
+  class Assign
+    include Visitable
+    attr_accessor :lhs,:rhs
+    def initialize lhs,rhs
+      @lhs,@rhs=lhs,rhs
+    end
+  end
 
-  Cstep          = Struct.new(:id,:body)
+  class Return < Dataflow::BehavioralNode
+    include Visitable
+    attr_accessor :expr
+    def initialize expr
+      super([expr.str],nil)
+      @expr=expr
+    end
+  end
+  #============= Expressions ================
+  class Expr < Dataflow::BehavioralNode
+    include Visitable
+    def initialize nb
+      input_port_names=nb.times.map{|i| "i#{i}"}
+      output_port_name="o"
+      super(input_port_names,output_port_name)
+    end
+  end
 
-  Assign         = Struct.new(:lhs,:rhs)
-  Return         = Struct.new(:expr)
+  class Binary < Expr
+    include Visitable
+    attr_accessor :lhs,:op,:rhs
+    attr_accessor :range
+    attr_accessor :mapping
+    def initialize lhs,op,rhs
+      super(2)
+      @lhs,@op,@rhs=lhs,op,rhs
+    end
+  end
 
-  Binary         = Struct.new(:lhs,:op,:rhs,:mapping,:range,:type)
-  Unary          = Struct.new(:op,:expr,:mapping,:range)
+  class Unary < Expr
+    include Visitable
+    attr_accessor :expr
+    attr_accessor :range
+    attr_accessor :mapping
+    def initialize op,expr
+      super(1)
+      @op,@expr=op,expr
+    end
+  end
 
-  IntLit         = Struct.new(:tok) do
+  #=============== terminals=================
+  class Ident
+    include Visitable
+    attr_accessor :tok
+    attr_accessor :ref
+    attr_accessor :range
+    def initialize tok
+      @tok=tok
+    end
+
+    def self.create str
+      Ident.new(Token.new(:ident,str,[0,0]))
+    end
+
+    def output
+      ref.output
+    end
+  end
+
+  class IntLit
+    include Visitable
+    attr_accessor :tok
+    attr_accessor :val
+    attr_accessor :range
+    attr_accessor :type
+    def initialize tok
+      @tok=tok
+      @val=tok.val.to_i
+      @range=Interval.new(@val,@val)
+      #nbits=@val==0 ? 1 : Math.log2(@val).ceil
+      #@type=NamedType.new(Ident.create "u#{nbits}")
+    end
+
     def self.create int
       IntLit.new(Token.new(:intlit,int.to_s,[0,0]))
     end
   end
-
-  Ident          = Struct.new(:tok,:range,:mapping,:ref) do
-    def self.create str
-      Ident.new(Token.new(:ident,str,[0,0]))
+  #================= Synthesis ==============
+  class Cstep
+    include Visitable
+    attr_accessor :id,:body
+    def initialize id,body
+      @id=id
+      @body=body
     end
   end
 
-  Cast          = Struct.new(:type,:expr) do
-  end
 end

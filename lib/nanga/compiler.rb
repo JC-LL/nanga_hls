@@ -2,17 +2,20 @@ module Nanga
 
   class Compiler
 
+    include Reporting
+
     attr_accessor :options
     attr_accessor :project_name
 
     def initialize options={}
       @options=options
-      $verbosity=0
+      $verbosity=10
     end
 
     def compile filename
       begin
         ast=parse(filename)
+
         puts "[+] resolving references"
         ast=resolve(ast)
         print(ast)
@@ -48,10 +51,12 @@ module Nanga
 
         puts "[+] extracting fsm/datapath"
         ir=extract_controler_datapath(ir)
-
+        draw_architecture(ir)
+        
         puts "[+] VHDL generation"
         top_level=vhdl_generation(ir)
-
+        abort
+        
       rescue Exception => e
         puts e.backtrace
         puts e
@@ -97,7 +102,7 @@ module Nanga
     end
 
     def elaborate_dfg ast
-      DfgGen.new.run(ast)
+      Dataflow::Builder.new.run(ast)
     end
 
     def generate_dot ast
@@ -113,7 +118,11 @@ module Nanga
     end
 
     def extract_controler_datapath ast
-      Extractor.new.run(ast)
+      RTL::Extractor.new.run(ast)
+    end
+
+    def draw_architecture ast
+      RTL::Drawer.new.run(ast)
     end
 
     def vhdl_generation ast

@@ -102,8 +102,8 @@ module Nanga
 
     def generate_controler(func)
       puts "     |--[+] controler... #{func.name.str}_controler.vhd"
+      entity_name=func.name.str+"_controler"
       controler=func.controler
-      entity_name="#{controler.name}"
       code=Code.new
       code << nanga_header
       code << ieee_header
@@ -185,7 +185,7 @@ module Nanga
 
       code.indent=0
       code << "end rtl;"
-      filename="#{controler.name}.vhd"
+      filename="#{entity_name}.vhd"
       code.save_as(filename)
     end
 
@@ -193,31 +193,26 @@ module Nanga
       puts "     |--[+] datapath.... #{func.name.str}_datapath.vhd"
       @type="signed(#{func.dim-1} downto 0)"
       datapath=func.datapath
-      consts =datapath.elements.select{|e| e.is_a?(RTL::Const)}
-      inputs =datapath.elements.select{|e| e.is_a?(RTL::Input)}
-      outputs=datapath.elements.select{|e| e.is_a?(RTL::Output)}
-      regs   =datapath.elements.select{|e| e.is_a?(RTL::Register)}
-      fus    =datapath.elements.select{|e| e.is_a?(RTL::Compute)}
-      # set the names of RTL elements output :
-      sig_names={}
-      sig_name="sig_0"
-      datapath.elements.each_with_index do |e,idx|
-        if e.respond_to?(:name)
-          name=e.name
-        elsif e.respond_to?(:id)
-          name=sig_name=sig_name.succ
-        end
-        sig_names[e]=name
+      consts =datapath.nodes.select{|e| e.is_a?(RTL::Const)}
+      inputs =datapath.nodes.select{|e| e.is_a?(RTL::Input)}
+      outputs=datapath.nodes.select{|e| e.is_a?(RTL::Output)}
+      regs   =datapath.nodes.select{|e| e.is_a?(RTL::Reg)}
+      fus    =datapath.nodes.select{|e| e.is_a?(RTL::FunctionalUnit)}
+      # build a hash of components input ports to incoming Edge
+      drivers={}
+      datapath.edges.each do |edge|
+        drivers[edge.sink]=edge.var
       end
       #
-      name=datapath.name
+      name=func.name.str
+      datapath_name="#{name}_datapath"
       code=Code.new
       code << nanga_header
       code << ieee_header
       code << "library #{func.name.str}_lib;"
-      code << "use #{func.name.str}_lib.#{func.name.str}_pkg.all;"
+      code << "use #{name}_lib.#{name}_pkg.all;"
       code.newline
-      code << "entity #{name} is"
+      code << "entity #{datapath_name} is"
       code.indent=2
       code << "port("
       code.indent=4
@@ -228,22 +223,21 @@ module Nanga
         code << "#{input.name} : in  #{type};"
       end
       outputs.each do |output|
-        code << "#{output.name} : out #{type};"
+        code << "func_return : out #{type};"
       end
       code.indent=2
       code << ");"
       code.indent=0
       code << "end entity;"
       code.newline
-      code << "architecture rtl of #{name} is"
+      code << "architecture rtl of #{datapath_name} is"
       code.indent=2
-      code << "-- declare constants"
+      code << "-- declare constants (#{consts.size})"
       consts.sort_by{|const| const.name}.each do |const|
-        code << "constant #{const.name.downcase} : #{type} := to_signed(#{const.value.str},#{func.dim});"
+        code << "constant #{const.name.downcase} : #{type} := to_signed(#{const.val.str},#{func.dim});"
       end
       code << "-- declare registers"
       regs.sort_by{|reg| reg.name}.each do |reg|
-
         code << "signal #{reg.name} : #{type};"
       end
       code << "-- declare functional units signals"
@@ -269,11 +263,13 @@ module Nanga
         code << "elsif rising_edge(clk) then"
         code.indent=6
         code << "case controls.mux_#{mux.id} is"
-        mux.inputs.each_with_index do |node,idx|
-          code << "when #{idx+1} => "
-          code.indent=8
-          code << "#{reg.name} <= #{sig_names[node]};"
-          code.indent=6
+        mux.inputs.each_with_index do |mux_input,idx|
+          if idx > 0
+            code << "when #{idx} => "
+            code.indent=8
+            code << "#{reg.name} <= #{drivers[mux_input]};"
+            code.indent=6
+          end
         end
         code << "when others =>"
         code.indent=8
@@ -295,50 +291,52 @@ module Nanga
         mux=fu.mux[:left]
         if mux.inputs.size > 1
           assign_indent="#{fu.name}_left <=".size
-          code << "#{fu.name}_left <= #{sig_names[mux.inputs.first]} when controls.mux_#{mux.id}=1 else"
+          code << "#{fu.name}_left <= #{drivers[mux.inputs.first]} when controls.mux_#{mux.id}=0 else"
           code.indent=2+assign_indent+1
-          mux.inputs[1..-2].each_with_index do |input,idx|
-            code << "#{sig_names[input]} when controls.mux_#{mux.id}=#{idx+1} else"
+          mux.inputs[1..-1].each_with_index do |input,idx|
+            code << "#{drivers[input]} when controls.mux_#{mux.id}=#{idx} else"
           end
-          code << "#{sig_names[mux.inputs.last]};"
+          code << "#{drivers[mux.inputs.last]};"
         else
-          code << "#{fu.name}_left <= #{sig_names[mux.inputs.first]};"
+          code << "#{fu.name}_left <= #{drivers[mux.inputs.first]};"
         end
         code.indent=2
         # ===== RIGHT
         mux=fu.mux[:right]
         assign_indent="#{fu.name}_right <=".size
         if mux.inputs.size > 1
-          code << "#{fu.name}_right <= #{sig_names[mux.inputs.first]} when controls.mux_#{mux.id}=1 else"
+          code << "#{fu.name}_right <= #{drivers[mux.inputs.first]} when controls.mux_#{mux.id}=0 else"
           code.indent=2+assign_indent+1
-          mux.inputs[1..-2].each_with_index do |input,idx|
-            code << "#{sig_names[input]} when controls.mux_#{mux.id}=#{idx+1} else"
+          mux.inputs[1..-1].each_with_index do |input,idx|
+            code << "#{drivers[input]} when controls.mux_#{mux.id}=#{idx} else"
           end
-          code << "#{sig_names[mux.inputs.last]};"
+          code << "#{drivers[mux.inputs.last]};"
         else
-          code << "#{fu.name}_right <= #{sig_names[mux.inputs.first]};"
+          code << "#{fu.name}_right <= #{drivers[mux.inputs.first]};"
         end
         code.indent=2
         # ===== operations
         op=NANGA_TO_VHDL_OPERATORS[fu.op]
-        code << "#{sig_names[fu]} <= resize(#{fu.name}_left #{op} #{fu.name}_right,#{func.dim});"
+        code << "#{fu.name} <= resize(#{fu.name}_left #{op} #{fu.name}_right,#{func.dim});"
         code.newline
       end
       code  << "-- connect output"
       outputs.each do |output|
-        code << "#{output.name} <= #{output.mux.inputs.first.name};"
+        # mind that output is a RTL Node. We need to find the driver 
+        # of its single input *port* : 
+        code << "func_return <= #{drivers[output.inputs.first]};"
       end
       code.indent=0
       code << "end rtl;"
-      filename="#{datapath.name}.vhd"
+      filename="#{datapath_name}.vhd"
       code.save_as(filename)
     end
 
     def generate_fsmd func
       filename="#{func.name.str}_fsmd.vhd"
       puts "     |--[+] fsmd........ #{filename}"
-      datapath_inputs =func.datapath.elements.select{|e| e.is_a?(RTL::Input)}
-      datapath_outputs=func.datapath.elements.select{|e| e.is_a?(RTL::Output)} #single normaly
+      datapath_inputs =func.datapath.nodes.select{|e| e.is_a?(RTL::Input)}
+      datapath_outputs=func.datapath.nodes.select{|e| e.is_a?(RTL::Output)} #single normaly
       code=Code.new
       code << nanga_header
       code << ieee_header
@@ -356,7 +354,7 @@ module Nanga
       func.args.each do |arg|
         code << "#{arg.name.str} : in #{type};"
       end
-      code << "result : out #{type}"
+      code << "func_return : out #{type}"
       code.indent=2
       code << ");"
       code.indent=0
@@ -389,10 +387,9 @@ module Nanga
       code << "clk      => clk,"
       code << "controls => controls,"
       func.args.each do |arg|
-        input=datapath_inputs.find{|input| input.allocated_nodes.find{|n| n.output_var==arg}}
-        code << "#{input.name} => #{arg.name.str},"
+        code << "#{arg.name.str} => #{arg.name.str},"
       end
-      code << "#{datapath_outputs.first.name} => result"
+      code << "func_return => func_return"
       code.indent=2
       code << ");"
       code.indent=0
