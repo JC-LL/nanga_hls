@@ -293,7 +293,7 @@ module Nanga
           assign_indent="#{fu.name}_left <=".size
           code << "#{fu.name}_left <= #{drivers[mux.inputs.first]} when controls.mux_#{mux.id}=0 else"
           code.indent=2+assign_indent+1
-          mux.inputs[1..-1].each_with_index do |input,idx|
+          mux.inputs[1..-2].each_with_index do |input,idx|
             code << "#{drivers[input]} when controls.mux_#{mux.id}=#{idx} else"
           end
           code << "#{drivers[mux.inputs.last]};"
@@ -307,7 +307,7 @@ module Nanga
         if mux.inputs.size > 1
           code << "#{fu.name}_right <= #{drivers[mux.inputs.first]} when controls.mux_#{mux.id}=0 else"
           code.indent=2+assign_indent+1
-          mux.inputs[1..-1].each_with_index do |input,idx|
+          mux.inputs[1..-2].each_with_index do |input,idx|
             code << "#{drivers[input]} when controls.mux_#{mux.id}=#{idx} else"
           end
           code << "#{drivers[mux.inputs.last]};"
