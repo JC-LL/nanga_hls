@@ -11,6 +11,10 @@ module Nanga
       def name
         self.class.to_s.split('::').last.downcase+"_#{@id}"
       end
+
+      def kind
+        self.class.to_s.split('::').last.downcase
+      end
     end
 
     class Input < DatapathNode
@@ -48,7 +52,6 @@ module Nanga
         super([],"f")
         @id=Mux.next_id
         @name="mux_#{@id}"
-        puts "creating mux #{@name}"
       end
 
       def Mux.next_id
@@ -183,9 +186,6 @@ module Nanga
             @edges << Dataflow::Edge.new(node.output,dst,var_name)
           end
         end
-        @edges.each do |edge|
-          puts "edge #{edge.source} #{edge.sink} #{edge.var}"
-        end
         @edges
       end
     end
@@ -200,7 +200,7 @@ module Nanga
       end
 
       def <<(control)
-        puts "state #{@id} : pushing transfer mux #{control.mux.id} #{control.value}"
+        #puts "state #{@id} : pushing transfer mux #{control.mux.id} #{control.value}"
         # check that this control i not already registered
         @controls.each do |ctrl|
           if ctrl.mux==control.mux

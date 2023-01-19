@@ -19,14 +19,10 @@ module Nanga
         states_h=csteps_h.keys.map{|cstep| [cstep,RTL::State.new]}.to_h
         states_h.values.each{|state| @controler << state}
         func.dfg.edges.each do |edge|
-          puts "-"*50
-          puts "processing edge #{edge}"
-          puts "-"*50
           var=edge.var
           bhv_port_src=edge.source
           bhv_port_dst=edge.sink
           bhv_node_src=bhv_port_src.node
-          #hit_a_key "bhv_node_src : #{bhv_node_src.class}"
           bhv_node_dst=bhv_port_dst.node
           cstep_node_src=bhv_node_src.cstep
           cstep_node_dst=bhv_node_dst.cstep
@@ -39,7 +35,7 @@ module Nanga
           @datapath << rtl_node_dst
           
           if (var.is_a?(Var) or var.is_a?(Arg)) and reg=clocked?(var)
-            puts "clocked #{var} in reg #{reg}"
+            report 2,"clocked #{var} in reg #{reg}"
             @datapath << reg
             @datapath << reg.mux
             control=build_transfer(rtl_port_src,reg.mux)
@@ -53,13 +49,10 @@ module Nanga
           when FunctionalUnit #dyadic
             #position left/right :
             index=bhv_node_dst.inputs.index(bhv_port_dst)
-            ##hit_a_key "index=#{index}"
             lr_position=index==0 ? :left : :right
             mux=rtl_node_dst.mux[lr_position]
             @datapath <<  mux
-            ##hit_a_key "mux=#{mux}"
             control=build_transfer(rtl_port_src,mux)
-
             states_h[cstep_node_dst] << control
           when Output
             sig=next_sig(rtl_port_src.type)
@@ -70,14 +63,14 @@ module Nanga
           end
         end
 
-        @controler.states.each do |state|
-          report 1,"state #{state.id}".center(40,'=')
-          state.controls.each do |control|
-            report 1,control
-          end
-        end
+        # @controler.states.each do |state|
+          # report 1,"state #{state.id}".center(40,'=')
+          # state.controls.each do |control|
+            # report 1,control
+          # end
+        # end
 
-        @datapath.print
+        #@datapath.print
         func.controler=@controler
         func.datapath=@datapath
         func
@@ -95,11 +88,8 @@ module Nanga
         # find the index of the mux input port, if exists, that
         # is already driven by src port
         if index=mux.inputs.index{|input| input.fanin==src}
-          #index+=1 # mux command 0 is reserved.
-          puts "found! index=#{index}"
           return RTL::Control.new(mux,index)
         else
-          #index=mux.size+1
           index=mux.size
           new_input_name="i"+index.to_s
           new_input=Dataflow::Port.new(mux,new_input_name)

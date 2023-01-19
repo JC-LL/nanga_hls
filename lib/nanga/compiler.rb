@@ -9,53 +9,52 @@ module Nanga
 
     def initialize options={}
       @options=options
-      $verbosity=10
+      $verbosity=1
     end
 
     def compile filename
       begin
         ast=parse(filename)
 
-        puts "[+] resolving references"
+        info_pass 0,"resolving references"
         ast=resolve(ast)
-        print(ast)
+        #print(ast)
 
-        puts "[+] elaborate intermediate representation"
+        info_pass 0,"elaborate intermediate representation"
         ir=build_ir(ast)
-        print(ir)
+        #print(ir)
         save(ir,"1_ir")
 
-        puts "[+] strength reduction"
+        info_pass 0,"strength reduction"
         ir=reduce_strength(ir)
-        print(ir)
+        #print(ir)
         save(ir,"2_sr")
 
-        puts "[+] propagate value ranges"
+        info_pass 0,"propagate value ranges"
         ir=propagate_range(ir)
-        print(ir)
+        #print(ir)
         save(ir,"3_vr")
 
-        puts "[+] elaborate dataflow graphs"
+        info_pass 0,"elaborate dataflow graphs"
         ir=elaborate_dfg(ir)
 
-        puts "[+] generate dot for dataflow graphs"
+        info_pass 0,"generate dot for dataflow graphs"
         generate_dot(ir)
 
-        puts "[+] scheduling"
+        info_pass 0,"scheduling"
         ir=scheduling(ir)
         save(ir,"4_sc")
 
-        puts "[+] allocation"
+        info_pass 0,"allocation"
         ir=allocation(ir)
         save(ir,"5_al")
 
-        puts "[+] extracting fsm/datapath"
+        info_pass 0,"extracting fsm/datapath"
         ir=extract_controler_datapath(ir)
         draw_architecture(ir)
         
-        puts "[+] VHDL generation"
+        info_pass 0,"VHDL generation"
         top_level=vhdl_generation(ir)
-        abort
         
       rescue Exception => e
         puts e.backtrace

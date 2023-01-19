@@ -16,7 +16,7 @@ module Nanga
     end
 
     def visitArg arg,args=nil
-      report 1,"registering #{arg.name.str}"
+      report 2,"registering #{arg.name.str}"
       unless @symtable.get arg.name.str
         @symtable.set arg.name.str,arg
       else
@@ -26,29 +26,28 @@ module Nanga
     end
 
     def visitVar var,args=nil
-      report 1,"registering #{var.name.str}"
+      #report 1,"registering #{var.name.str}"
       @symtable.set var.name.str,var
       var
     end
 
     def visitConst const,args=nil
-      report 1,"registering #{const.name.str}"
+      report 2,"registering #{const.name.str}"
       @symtable.set const.name.str,const
       const
     end
 
     def visitNamedType ntype,args=nil
-      report 1,"registering #{ntype.name.str}"
+      report 2,"registering #{ntype.name.str}"
       unless @symtable.get ntype.name.str
         @symtable.set ntype.name.str,ntype
-      #no ELSE
       end
       ntype
     end
 
     def visitIdent ident,args=nil
       if reference=@symtable.get(ident.str)
-        report 1,"linking #{ident.str} to a #{reference.class}"
+        report  2,"linking #{ident.str} to a #{reference.class}"
         ident.ref=reference
       else
         raise "unknown identifier '#{ident.str}'. Not found in symtable."

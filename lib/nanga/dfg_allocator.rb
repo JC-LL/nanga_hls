@@ -8,18 +8,16 @@ module Nanga
     # 2) we extract the maximum number of bits characterizing the whole architecture.
 
     def visitDef func,args=nil
-      report 0," |--[+] processing '#{func.name.str}'"
+      info_pass 2,"resource allocation & binding for '#{func.name.str}'"
       func.dfg.nodes.sort_by!{|node| node.cstep}
       func.dim=find_single_dim(func)
       init_resource_allocation(func)
       func.dfg.nodes.each do |node|
         fu=get_an_available_fu_in_cstep(node)
-        #bind node and FU
         bind_to(node,fu)
       end
-      # report Allocation :
       func.dfg.nodes.each do |node|
-        report 0,"binding node #{node} to #{node.mapping}"
+        info_pass 3,"binding node (#{node.str}) ".ljust(60,'.')+node.mapping.name
       end
 
       register_allocation(func)
@@ -28,7 +26,7 @@ module Nanga
     end
 
     def init_resource_allocation func
-      report 1,"|--[+] initializing resource allocation for '#{func.name.str}'"
+      report 3,"initializing resource allocation for '#{func.name.str}'"
       @functional_units=[] #declared FUs
       csteps=func.dfg.nodes.collect{|node| node.cstep}.uniq
       @max_cstep=csteps.max
@@ -36,17 +34,17 @@ module Nanga
     end
 
     def get_an_available_fu_in_cstep node
-      report 1,"fu for #{node.str}"
       cstep=node.cstep
       # search
-      puts "searching #{node.signature}"
+      report 3,"searching #{node.signature}"
       if fu=@availability[cstep].find{|unit| unit.signature==node.signature}
         @availability[cstep].delete fu
         return fu
       else
-        puts "no FU found for #{node.str} in cstep #{cstep}"
+        report 2,"no FU found for #{node.str} in cstep #{cstep}"
         # allocate
         new_fu=allocation_for(node)
+        info_pass 3,"allocating resource #{new_fu.name}"
         # makes fu available for next cteps :
         (cstep+1..@max_cstep).each{|cstep_| @availability[cstep_] << new_fu unless new_fu.is_a?(RTL::Const)}
         return new_fu
@@ -54,7 +52,7 @@ module Nanga
     end
 
     def allocation_for node
-      report 1,"allocation for node #{node.class} (#{node.str})"
+      report 3,"allocation for node #{node.class} (#{node.str})"
       # creates a FU with same i/o types
       case node
       when Arg
@@ -86,7 +84,7 @@ module Nanga
     end
 
     def copy_signature node,fu
-      report 1,"copy signature #{node} #{fu}"
+      report 2,"copy signature #{node} #{fu}"
       node.inputs.each_with_index{|input,i| fu.get_input(i).type=input.type}
       fu.output.type=node.output.type if node.output
     end
@@ -95,16 +93,16 @@ module Nanga
       type_names=func.dfg.edges.collect{|edge| edge.var.type}.map{|type| type.str}.uniq
       if type_names.all?{|name| name.match(/[us]\d+/)}
         max_bits=type_names.map{|name| name.match(/[us](\d+)/)[1].to_i}.max
-        report 1,"     |--[+] required minimal architecture : #{@max_bits} bits"
+        report 2,"required minimal architecture : #{@max_bits} bits"
         if all_unsigned=type_names.all?{|name| name.match(/u\d+/)}
           @max_type=NamedType.create "u#{@max_bits}"
-          report 1,"     |--[+] optimal type : #{@max_type.str}"
+          report 2,"optimal type : #{@max_type.str}"
         else
           @max_type=NamedType.create "s#{@max_bits}"
-          report 1,"     |--[+] optimal type : #{@max_type.str}"
+          report 2,"optimal type : #{@max_type.str}"
         end
       else
-        report 1,"     |--[+] cannot determine #bits for this program."
+        report 2,"cannot determine #bits for this program."
       end
       return max_bits
     end
@@ -116,11 +114,11 @@ module Nanga
 
     #lifetime[v] is an array of disjoint life_segments h={:birth=> cstep, :death=>cstep'}
     def compute_lifetimes func
-      report 1,"compute variables lifetimes"
+      info_pass 4,"compute variables lifetimes"
       lifetime={}
       # edges can convey : Arg, Var, Const
       func.dfg.edges.reject{|edge| edge.var.is_a?(Const)}.each do |edge|
-        report 2, "processing edge #{edge.to_s}"
+        report 4, "processing edge #{edge.to_s}"
         var=edge.var
         lifetime[var]||=[]
         life_segment={}
@@ -150,7 +148,7 @@ module Nanga
     end
 
     def register_allocation func
-      report 1," [+] register allocation"
+      info_pass 3,"register allocation"
       lifetime=compute_lifetimes(func)
       graph=build_compatibility_graph(lifetime)
       graph=clique_partitioning(graph)
@@ -159,13 +157,13 @@ module Nanga
         reg=RTL::Reg.new(reg_type)
         clique.content.each do |var|
           var.register=reg
-          report 0,"mapping [#{var.class}]#{var.name.str} to register #{reg.id}"
+          info_pass 4,"mapping [#{var.class}]#{var.name.str} to register #{reg.id}"
         end
       end
     end
 
     def build_compatibility_graph lifetime
-      report 1,"building compatibility graph"
+      info_pass 4,"building compatibility graph"
       graph=Allocation::Graph.new("alloc")
       nodes_h={}
       lifetime.keys.each do |var|
@@ -194,7 +192,7 @@ module Nanga
     end
 
     def clique_partitioning graph
-      report 1,"clique partitioning"
+      info_pass 4,"clique partitioning"
       algo=Allocation::TsengSiework.new
       result=algo.apply_to(graph)
     end

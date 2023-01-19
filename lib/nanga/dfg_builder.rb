@@ -8,13 +8,13 @@ module Nanga
       end
 
       def build_dfg func
-        puts "building dfg for '#{func.name.str}'"
+        info_pass 1,"building dfg for '#{func.name.str}'"
         @producers=collect_producers(func)
         func.dfg=make_connect(func)
       end
 
       def collect_producers func
-        puts "collecting producers for '#{func.name.str}'"
+        info_pass 4, "collecting producers for '#{func.name.str}'"
         @producers={}
         [func.args,func.body.stmts].flatten.each do |stmt|
           case arg=assign=ret=stmt
@@ -43,7 +43,7 @@ module Nanga
         end
 
         @producers.each do |str,port|
-          puts "#{port.full_name} --#{str}-->"
+          report 2,"#{port.full_name} --#{str}-->"
         end
       end
 
@@ -57,7 +57,7 @@ module Nanga
         else
           pdst.name=new_name
         end
-        puts "#{pdst} named #{old_name} renamed to #{pdst.name}"
+        report 2,"#{pdst} named #{old_name} renamed to #{pdst.name}"
       end
 
       # this method connects node inputs to their producers.
@@ -73,12 +73,8 @@ module Nanga
             when Binary
               lhs_port=@producers[binary.lhs.str] || binary.lhs.output
               rhs_port=@producers[binary.rhs.str] || binary.rhs.output
-              #var_or_cst_l=func.symtable.get(lhs_port.name)
-              #var_or_cst_r=func.symtable.get(rhs_port.name)
               bin_port_0=binary.get_input(0)
               bin_port_1=binary.get_input(1)
-              #dfg.connect lhs_port,bin_port_0,var_or_cst_l
-              #dfg.connect rhs_port,bin_port_1,var_or_cst_r
               renaming(lhs_port,bin_port_0)
               renaming(rhs_port,bin_port_1)
               lhs_port.to bin_port_0
@@ -102,7 +98,6 @@ module Nanga
           when Return
             var=ret.expr.ref
             expr_port=@producers[var.name.str] || var.output
-            #dfg.connect expr_port, dst=ret.get_input(0),var
             expr_port.to dst=ret.get_input(0)
             renaming(expr_port,dst)
           end

@@ -14,7 +14,7 @@ module Nanga
 
     def visitArg arg,args=nil
       set_range(arg)
-      report 1,"range of #{arg.str} is now #{arg.range}"
+      report 2,"range of #{arg.str} is now #{arg.range}"
       arg
     end
 
@@ -24,7 +24,7 @@ module Nanga
     end
 
     def set_range decl
-      report 1,"set range #{decl.str}"
+      report 2,"set range #{decl.str}"
       case decl.type.str
       when /[is](\d+)/
         nbits=$1.to_i
@@ -48,7 +48,7 @@ module Nanga
     def visitAssign assign,args=nil
       rhs=assign.rhs.accept(self)
       assign.lhs.ref.range=rhs.range # WARNING note the .ref !!!
-      report 1,"range of #{assign.lhs.str} is now #{rhs.range}"
+      report 2,"range of #{assign.lhs.str} is now #{rhs.range}"
       assign
     end
 
@@ -57,12 +57,12 @@ module Nanga
     end
 
     def visitBinary bin,args=nil
-      report 1,"visitBinary #{bin.str}"
+      report 2,"visitBinary #{bin.str}"
       l=bin.lhs.accept(self)
-      report 1,"has range #{l.str} : #{l.range!=nil}"
+      report 2,"has range #{l.str} : #{l.range!=nil}"
       o=bin.op
       r=bin.rhs.accept(self)
-      report 1,"has range #{r.str} : #{r.range!=nil}"
+      report 2,"has range #{r.str} : #{r.range!=nil}"
       bin.range=compute_range(l.range,o,r.range)
       bin
     end
@@ -95,7 +95,7 @@ module Nanga
     end
 
     def compute_type var
-      report 1,"compute_range #{var.str}"
+      report 2,"compute_range #{var.str}"
       min,max=var.range.min,var.range.max
       type=(min >=0) ? get_unsigned(min,max) : get_signed(min,max)
       NamedType.new(Ident.create(type))

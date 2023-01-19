@@ -24,13 +24,6 @@ module Nanga
       code << "digraph G {"
       code.indent=2
       func.datapath.nodes.each{|node| code << declare(node)}
-
-      # func.datapath.nodes.each do |node|
-      #   port_src=node.output
-      #   node.output.fanout.each do |port_dest|
-      #     code << "#{node.object_id}:#{port_src.name} -> #{(dest=port_dest.node).object_id}:#{port_dest.name}[label=\"#{port_src.name}\"]"
-      #   end
-      # end
       func.datapath.edges.each do |edge|
         #var=edge.var
         port_src=edge.source

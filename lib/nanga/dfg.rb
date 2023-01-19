@@ -10,7 +10,6 @@ module Nanga
         @node=node
         @name=name
         @type=nil
-        puts "creating port #{full_name}"
         @fanout,@fanin=[],nil
       end
 
@@ -21,12 +20,11 @@ module Nanga
       def rename new_name
         old_name=full_name
         @name=new_name
-        puts "renaming #{old_name} to #{full_name}"
-
+        "renaming #{old_name} to #{full_name}"
       end
 
       def to port
-        puts "connecting #{self.full_name} --> #{port.full_name}"
+        #puts "connecting #{self.full_name} --> #{port.full_name}"
         @fanout << port
         port.fanin=self
       end
@@ -82,7 +80,6 @@ module Nanga
 
       def <<(node)
         unless @nodes.include?(node)
-          puts "#{self} : adding #{node}"
           @nodes << node
           node.graph=self
         end
@@ -120,11 +117,6 @@ module Nanga
         end
         @edges
       end
-      # def connect src,dst,var
-      #   puts "connect #{src.name}--#{var.name.str}-->#{dst.name}"
-      #   src.to dst
-      #   @edges << Edge.new(src,dst,var)
-      # end
     end
 
     class BehavioralNode < Node
