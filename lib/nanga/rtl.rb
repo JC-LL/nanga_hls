@@ -65,8 +65,8 @@ module Nanga
       def initialize
         super(["i0",'i1'],"f")
         @mux={left:mux_l=Mux.new,right:mux_r=Mux.new}
-        #mux_l.output.to self.get_input(0)
-        #mux_r.output.to self.get_input(1)
+        mux_l.output.to self.get_input(0)
+        mux_r.output.to self.get_input(1)
       end
 
       def op

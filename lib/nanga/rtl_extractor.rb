@@ -1,7 +1,7 @@
 module Nanga
   module RTL
     class Extractor <  CompilerPass
-      
+
       def run ast
         ast.accept(self)
       end
@@ -37,6 +37,7 @@ module Nanga
           #rtl_port_dst=rtl_node_dst.output
           @datapath << rtl_node_src
           @datapath << rtl_node_dst
+          
           if (var.is_a?(Var) or var.is_a?(Arg)) and reg=clocked?(var)
             puts "clocked #{var} in reg #{reg}"
             @datapath << reg
@@ -91,7 +92,7 @@ module Nanga
       def build_transfer src,mux
         #hit_a_key "building transfer for source #{src.name} to mux #{mux}"
 
-        # find the index of the mux input port, if exists, that 
+        # find the index of the mux input port, if exists, that
         # is already driven by src port
         if index=mux.inputs.index{|input| input.fanin==src}
           #index+=1 # mux command 0 is reserved.
