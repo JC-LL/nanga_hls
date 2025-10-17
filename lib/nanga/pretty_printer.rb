@@ -153,11 +153,11 @@ module Nanga
       if ref=ident.ref
         case ref
         when Var
-          if mapping=ref.mapping
+          if mapping=ref.register
             str+="@"+mapping.name
           end
         when Arg
-          if mapping=ref.mapping
+          if mapping=ref.register
             str+="@"+mapping.name
           end
         end
